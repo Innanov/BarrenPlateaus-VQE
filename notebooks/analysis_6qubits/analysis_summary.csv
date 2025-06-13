@@ -1,0 +1,5 @@
+Method,Parameters,Final Energy,Energy Error,Fidelity,Grad Variance,Grad Norm,Performance,Barren Plateau
+Standard VQE,12,0.737325,7.37e-01,0.456,9.35e-03,3.35e-01,Poor,Significant
+Local-Global VQE,12,0.489059,4.89e-01,0.761,1.27e-02,4.44e-01,Poor,Severe
+Adiabatic VQE,12,0.989543,9.90e-01,0.021,1.97e-04,5.41e-02,Poor,Moderate
+VQE with SEA,21,0.999865,1.00e+00,0.000,2.46e-06,2.09e-02,Poor,Minimal

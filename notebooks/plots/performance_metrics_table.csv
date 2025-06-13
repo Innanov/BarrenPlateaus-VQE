@@ -1,0 +1,5 @@
+Method,Energy Error,State Fidelity,Gradient Variance,Gradient Norm (Mean)
+Standard VQE,9.01e-02,0.992,6.48e-03,2.91e-01
+Local-Global VQE,9.99e-01,0.002,2.82e-06,5.79e-03
+Adiabatic VQE,8.33e-01,0.306,4.95e-03,2.51e-01
+VQE with SEA,2.99e-01,0.911,8.41e-03,5.39e-01
