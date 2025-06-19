@@ -1,0 +1,47 @@
+{
+  "Standard VQE": {
+    "num_qubits": 3,
+    "num_layers": 1,
+    "gradient_variance": 0.012989956427887321,
+    "gradient_norm_mean": 0.38836836309125916,
+    "final_energy_error": 0.2099578629283304,
+    "state_fidelity": 0.9559176957945684,
+    "num_parameters": 6
+  },
+  "Local-Global VQE": {
+    "num_qubits": 3,
+    "num_layers": 1,
+    "gradient_variance": 0.0010594403343132392,
+    "gradient_norm_mean": 0.12169737485870738,
+    "final_energy_error": 0.010345072578281711,
+    "state_fidelity": 0.9998929794733501,
+    "num_parameters": 6
+  },
+  "Adiabatic VQE": {
+    "num_qubits": 3,
+    "num_layers": 1,
+    "gradient_variance": 0.0010160514846220133,
+    "gradient_norm_mean": 0.08414066382026002,
+    "final_energy_error": 0.9834673346110845,
+    "state_fidelity": 0.03279200175296915,
+    "num_parameters": 6
+  },
+  "VQE with SEA": {
+    "num_qubits": 3,
+    "num_layers": 1,
+    "gradient_variance": 0.0014569456221484058,
+    "gradient_norm_mean": 0.10739326577636758,
+    "final_energy_error": 0.008857517437706658,
+    "state_fidelity": 0.9999215443848407,
+    "num_parameters": 6
+  },
+  "Pretrained VQE": {
+    "num_qubits": 3,
+    "num_layers": 1,
+    "gradient_variance": 0.003885109755092968,
+    "gradient_norm_mean": 0.4674940279623128,
+    "final_energy_error": 0.0930850343131578,
+    "state_fidelity": 0.9913351763869183,
+    "num_parameters": 33
+  }
+}
