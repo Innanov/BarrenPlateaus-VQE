@@ -1,2 +1,3 @@
 git+https://github.com/Mostafa-Atallah2020/quantum-barren-plateaus.git@installable-version
 scikit-learn==1.6.1
+qiskit-nature[pyscf]==0.6.0

@@ -1245,4 +1245,3 @@ def create_performance_table(analyzer, output_dir: str = "./plots") -> pd.DataFr
     """
     visualizer = MolecularLandscapeVisualizer(analyzer, output_dir)
     return visualizer.create_performance_table()
-

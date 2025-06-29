@@ -48,7 +48,9 @@ try:
         get_molecular_info_pyscf,
     )
 except ImportError:
-    print("Warning: `hamiltonian_builder` not available. Using fallback implementations.")
+    print(
+        "Warning: `hamiltonian_builder` not available. Using fallback implementations."
+    )
     QISKIT_NATURE_AVAILABLE = False
     MOLECULAR_GEOMETRIES = {
         "H2": {
