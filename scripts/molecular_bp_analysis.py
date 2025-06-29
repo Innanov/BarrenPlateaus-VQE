@@ -33,8 +33,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from barren_plateaus_vqe.hamiltonian_builder import validate_molecular_system
-
 warnings.filterwarnings("ignore")
 
 # Add the package to Python path
