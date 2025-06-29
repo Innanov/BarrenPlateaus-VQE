@@ -667,7 +667,7 @@ class BarrenPlateauAnalyzer:
             self.run_local_global_vqe,
             self.run_adiabatic_vqe,
             self.run_sea_vqe,
-            self.run_pretrained_vqe,
+            # self.run_pretrained_vqe,
         ]
 
         all_results = {}

@@ -35,6 +35,7 @@ Visualization Techniques Implemented:
 """
 
 import os
+import re
 import warnings
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -460,6 +461,51 @@ class MolecularLandscapeVisualizer:
 
         return fig
 
+    def format_number_for_latex(self, value, decimal_places=3):
+        """
+        Format a number for LaTeX math mode with proper scientific notation
+        and simplified decimal representation.
+
+        Args:
+            value: The number to format
+            decimal_places: Number of decimal places for regular numbers
+
+        Returns:
+            String formatted for LaTeX math mode
+        """
+        if value == 0:
+            return "0"
+
+        # Handle very small or very large numbers with scientific notation
+        if abs(value) < 1e-3 or abs(value) >= 1e4:
+            # Format in scientific notation
+            formatted = f"{value:.{decimal_places-1}e}"
+
+            # Parse the scientific notation
+            match = re.match(r"([+-]?\d+\.?\d*)e([+-]?\d+)", formatted)
+            if match:
+                mantissa = float(match.group(1))
+                exponent = int(match.group(2))
+
+                # Clean up mantissa (remove unnecessary decimals)
+                if mantissa == int(mantissa):
+                    mantissa_str = f"{int(mantissa)}"
+                else:
+                    mantissa_str = f"{mantissa:.{decimal_places-1}f}".rstrip(
+                        "0"
+                    ).rstrip(".")
+
+                return f"{mantissa_str} \\times 10^{{{exponent}}}"
+        else:
+            # Regular number formatting
+            formatted = f"{value:.{decimal_places}f}"
+
+            # Remove unnecessary decimal places
+            if "." in formatted:
+                formatted = formatted.rstrip("0").rstrip(".")
+
+            return formatted
+
     def create_performance_table(self) -> pd.DataFrame:
         """
         Create and display performance metrics table with molecular context.
@@ -533,22 +579,31 @@ class MolecularLandscapeVisualizer:
         )
 
         latex_content = f"""\\begin{{table}}[h!]
-\\centering
-\\caption{{Performance Metrics for {self.molecular_context['title_prefix']} ({self.molecular_context['system_info']})}}
-\\label{{tab:performance_metrics_{self.molecular_context['filename_prefix']}}}
-\\begin{{tabular}}{{lcccc}}
-\\hline
-\\textbf{{Method}} & \\textbf{{Energy Error}} & \\textbf{{State Fidelity}} & \\textbf{{Gradient Variance}} & \\textbf{{Gradient Norm}} \\\\
-\\hline
-"""
+                            \\centering
+                            \\caption{{Performance Metrics for {self.molecular_context['title_prefix']} ({self.molecular_context['system_info']})}}
+                            \\label{{tab:performance_metrics_{self.molecular_context['filename_prefix']}}}
+                            \\begin{{tabular}}{{lcccc}}
+                            \\hline
+                            \\textbf{{Method}} & \\textbf{{Energy Error}} & \\textbf{{State Fidelity}} & \\textbf{{Gradient Variance}} & \\textbf{{Gradient Norm}} \\\\
+                            \\hline
+                        """
 
         for _, row in df.iterrows():
             method = row["Method"].replace("_", r"\_")
-            latex_content += f"{method} & ${row['Energy Error']:.2e}$ & ${row['State Fidelity']:.3f}$ & ${row['Gradient Variance']:.2e}$ & ${row['Gradient Norm']:.2e}$ \\\\\n"
+
+            # Format each numerical column properly for LaTeX
+            energy_error = self.format_number_for_latex(row["Energy Error"], 2)
+            state_fidelity = self.format_number_for_latex(row["State Fidelity"], 3)
+            gradient_variance = self.format_number_for_latex(
+                row["Gradient Variance"], 2
+            )
+            gradient_norm = self.format_number_for_latex(row["Gradient Norm"], 2)
+
+            latex_content += f"{method} & ${energy_error}$ & ${state_fidelity}$ & ${gradient_variance}$ & ${gradient_norm}$ \\\\\n"
 
         latex_content += r"""\hline
-\end{tabular}
-\end{table}"""
+    \end{tabular}
+    \end{table}"""
 
         with open(latex_path, "w") as f:
             f.write(latex_content)
