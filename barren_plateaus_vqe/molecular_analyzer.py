@@ -597,9 +597,7 @@ class BarrenPlateauAnalyzer:
         def cost_function(params):
             return energy_evaluation(self.H, ansatz, params, backend)
 
-        grad_var = self.compute_gradient_variance(
-            cost_function, final_params, num_samples=20
-        )
+        grad_var = self.compute_gradient_variance(cost_function, final_params)
         landscape_stats = self.compute_cost_landscape_statistics(
             cost_function, final_params, num_samples=30, perturbation_scale=0.1
         )
