@@ -129,6 +129,31 @@ DEFAULT_ACTIVE_SPACES = {
 }
 
 
+def normalize_molecule_name(molecule: str, available_molecules: List[str]) -> str:
+    """
+    Normalize molecule name to match available molecules exactly.
+    Fixes case sensitivity issues (e.g., "LIH" -> "LiH").
+
+    Args:
+        molecule: Input molecule name
+        available_molecules: List of available molecule names
+
+    Returns:
+        Normalized molecule name that matches available list
+    """
+    # First try exact match
+    if molecule in available_molecules:
+        return molecule
+
+    # Try case-insensitive match
+    for available in available_molecules:
+        if available.lower() == molecule.lower():
+            return available
+
+    # No match found - return original
+    return molecule
+
+
 class MolecularHamiltonianGenerator:
     """
     Generate molecular Hamiltonians using PySCF and Qiskit Nature.
@@ -389,11 +414,17 @@ def get_molecular_hamiltonian_pyscf(
             "Install with: pip install qiskit-nature[pyscf]==0.6.0"
         )
 
-    molecule = molecule.upper()
+    # FIXED: Case-insensitive molecule name handling
+    available_molecules = list(MOLECULAR_GEOMETRIES.keys())
+    normalized_molecule = normalize_molecule_name(molecule, available_molecules)
 
-    if molecule not in MOLECULAR_GEOMETRIES:
-        available = list(MOLECULAR_GEOMETRIES.keys())
-        raise ValueError(f"Unknown molecule: {molecule}. Available: {available}")
+    if normalized_molecule not in MOLECULAR_GEOMETRIES:
+        raise ValueError(
+            f"Unknown molecule: {molecule}. Available: {available_molecules}"
+        )
+
+    # Use the normalized (correctly cased) molecule name
+    molecule = normalized_molecule
 
     if geometry not in MOLECULAR_GEOMETRIES[molecule]:
         available = list(MOLECULAR_GEOMETRIES[molecule].keys())
@@ -457,11 +488,17 @@ def get_molecular_info_pyscf(
             "Install with: pip install qiskit-nature[pyscf]==0.6.0"
         )
 
-    molecule = molecule.upper()
+    # FIXED: Case-insensitive molecule name handling
+    available_molecules = list(MOLECULAR_GEOMETRIES.keys())
+    normalized_molecule = normalize_molecule_name(molecule, available_molecules)
 
-    if molecule not in MOLECULAR_GEOMETRIES:
-        available = list(MOLECULAR_GEOMETRIES.keys())
-        raise ValueError(f"Unknown molecule: {molecule}. Available: {available}")
+    if normalized_molecule not in MOLECULAR_GEOMETRIES:
+        raise ValueError(
+            f"Unknown molecule: {molecule}. Available: {available_molecules}"
+        )
+
+    # Use the normalized (correctly cased) molecule name
+    molecule = normalized_molecule
 
     if geometry not in MOLECULAR_GEOMETRIES[molecule]:
         available = list(MOLECULAR_GEOMETRIES[molecule].keys())
@@ -562,16 +599,19 @@ def validate_molecular_system(
         "molecular_properties": None,
     }
 
-    molecule = molecule.upper()
+    # FIXED: Case-insensitive molecule validation
+    available_molecules = list(MOLECULAR_GEOMETRIES.keys())
+    normalized_molecule = normalize_molecule_name(molecule, available_molecules)
 
     # Check molecule
-    if molecule not in MOLECULAR_GEOMETRIES:
+    if normalized_molecule not in MOLECULAR_GEOMETRIES:
         validation["valid"] = False
         validation["warnings"].append(f"Unknown molecule: {molecule}")
-        validation["suggestions"].append(
-            f"Available molecules: {list(MOLECULAR_GEOMETRIES.keys())}"
-        )
+        validation["suggestions"].append(f"Available molecules: {available_molecules}")
         return validation
+
+    # Use normalized molecule name for further validation
+    molecule = normalized_molecule
 
     # Check geometry
     if geometry not in MOLECULAR_GEOMETRIES[molecule]:
@@ -714,7 +754,7 @@ if __name__ == "__main__":
 
     # Test molecular system validation
     print(f"\n🔍 Testing molecular validation...")
-    for molecule in ["H2", "LiH", "INVALID"]:
+    for molecule in ["H2", "LiH", "lih", "LIH", "INVALID"]:  # Test case sensitivity
         validation = validate_molecular_system(molecule)
         print(
             f"{molecule}: Valid={validation['valid']}, Qubits={validation['estimated_qubits']}"
@@ -730,6 +770,18 @@ if __name__ == "__main__":
             h2_ham = h2_hamiltonian()
             h2_props = estimate_hamiltonian_properties(h2_ham)
             print(f"H2: {h2_props['num_qubits']} qubits, {h2_props['num_terms']} terms")
+
+            # Test LiH with various case inputs
+            print(f"\n🔧 Testing case sensitivity fixes:")
+            for lih_variant in ["LiH", "lih", "LIH"]:
+                try:
+                    lih_ham = lih_hamiltonian()  # This should work for all variants
+                    lih_props = estimate_hamiltonian_properties(lih_ham)
+                    print(
+                        f"{lih_variant}: {lih_props['num_qubits']} qubits, {lih_props['num_terms']} terms"
+                    )
+                except Exception as e:
+                    print(f"{lih_variant}: Failed - {e}")
 
             # Test H2O with active space
             h2o_ham = h2o_hamiltonian()

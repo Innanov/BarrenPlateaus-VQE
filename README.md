@@ -12,6 +12,80 @@ Main analysis script for individual molecular systems. Provides complete barren 
 ### `batch_molecular_analysis.py`
 Batch processing helper for running multiple analyses with predefined configurations or custom molecule lists.
 
+## Supported Molecules
+
+The codebase supports a comprehensive set of molecules with predefined geometries and optimized active spaces for quantum chemistry calculations.
+
+### Available Molecules and Geometries
+
+| Molecule | Available Geometries | Electrons | Default Active Space |
+|----------|---------------------|-----------|---------------------|
+| **H₂** | equilibrium, stretched, compressed, dissociation | 2 | Full space |
+| **LiH** | equilibrium, stretched, compressed | 4 | (2e, 4o) |
+| **BeH₂** | equilibrium, stretched, asymmetric | 6 | (4e, 6o) |
+| **H₂O** | equilibrium, stretched, bent | 10 | (8e, 6o) |
+| **N₂** | equilibrium, stretched, dissociation | 14 | (6e, 8o) |
+| **CO** | equilibrium, stretched, dissociation | 14 | (6e, 8o) |
+| **NH₃** | equilibrium, planar | 10 | (8e, 6o) |
+| **CH₄** | equilibrium | 10 | (8e, 6o) |
+
+### Geometry Definitions
+
+#### **H₂ (Hydrogen molecule)**
+- **equilibrium**: H-H bond length 0.735 Å
+- **stretched**: H-H bond length 1.5 Å  
+- **compressed**: H-H bond length 0.5 Å
+- **dissociation**: H-H bond length 3.0 Å
+
+#### **LiH (Lithium hydride)**
+- **equilibrium**: Li-H bond length 1.595 Å
+- **stretched**: Li-H bond length 2.5 Å
+- **compressed**: Li-H bond length 1.2 Å
+
+#### **BeH₂ (Beryllium hydride)**
+- **equilibrium**: Linear, Be-H bond lengths 1.33 Å
+- **stretched**: Linear, Be-H bond lengths 2.0 Å
+- **asymmetric**: Be-H bonds 1.33 Å and 1.8 Å
+
+#### **H₂O (Water)**
+- **equilibrium**: Standard tetrahedral geometry, O-H 0.96 Å
+- **stretched**: Extended O-H bonds ~1.44 Å
+- **bent**: Compressed bond angle configuration
+
+#### **N₂ (Nitrogen molecule)**
+- **equilibrium**: N≡N triple bond, 1.098 Å
+- **stretched**: N-N bond length 2.5 Å
+- **dissociation**: N-N bond length 4.0 Å
+
+#### **CO (Carbon monoxide)**
+- **equilibrium**: C≡O triple bond, 1.128 Å
+- **stretched**: C-O bond length 2.0 Å
+- **dissociation**: C-O bond length 3.5 Å
+
+#### **NH₃ (Ammonia)**
+- **equilibrium**: Pyramidal geometry, N-H 1.017 Å
+- **planar**: Flattened trigonal planar configuration
+
+#### **CH₄ (Methane)**
+- **equilibrium**: Tetrahedral geometry, C-H 1.093 Å
+
+### Active Space Recommendations
+
+For efficient quantum simulations, the following active spaces are recommended:
+
+| Molecule | Electrons | Orbitals | Qubits | Complexity |
+|----------|-----------|----------|---------|------------|
+| H₂ | 2 | 2-4 | 4-8 | Low |
+| LiH | 2 | 4 | 8 | Low |
+| BeH₂ | 4 | 6 | 12 | Medium |
+| H₂O | 8 | 6 | 12 | Medium |
+| N₂ | 6 | 8 | 16 | High |
+| CO | 6 | 8 | 16 | High |
+| NH₃ | 8 | 6 | 12 | Medium |
+| CH₄ | 8 | 6 | 12 | Medium |
+
+**Note**: Larger molecules (>12 qubits) benefit significantly from active space approximations to maintain computational feasibility while preserving chemical accuracy.
+
 ## Quick Start
 
 ### Single Molecule Analysis
@@ -31,6 +105,12 @@ python3 scripts/molecular_bp_analysis.py --molecule "H2" --layer-scaling --max-l
 
 # LiH with all options
 python3 scripts/molecular_bp_analysis.py --molecule "LiH" --geometry stretched --basis 6-31g --freeze-core --iterations 1200
+
+# Multi-geometry study
+python3 scripts/molecular_bp_analysis.py --molecule "N2" --geometry dissociation --active-space 6 8
+
+# Large molecule with active space
+python3 scripts/molecular_bp_analysis.py --molecule "NH3" --geometry planar --active-space 8 6 --iterations 600
 ```
 
 ### Batch Analysis
@@ -51,6 +131,9 @@ python3 scripts/batch_molecular_analysis.py --preset layer_scaling
 # Custom molecule list
 python3 scripts/batch_molecular_analysis.py --custom H2,LiH,BeH2 --iterations 800
 
+# Geometry effects study
+python3 scripts/batch_molecular_analysis.py --custom H2,LiH --geometry equilibrium,stretched --iterations 600
+
 # Dry run (show commands without executing)
 python3 scripts/batch_molecular_analysis.py --preset small_molecules --dry-run
 ```
@@ -61,11 +144,11 @@ python3 scripts/batch_molecular_analysis.py --preset small_molecules --dry-run
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--molecule` | Molecule to analyze ("H2", "LiH", "BeH2", "H2O", "N2", "CO") | Required |
-| `--geometry` | Molecular geometry (equilibrium, stretched, etc.) | equilibrium |
+| `--molecule` | Molecule to analyze (H2, LiH, BeH2, H2O, N2, CO, NH3, CH4) | Required |
+| `--geometry` | Molecular geometry (see supported geometries above) | equilibrium |
 | `--basis` | Basis set (sto-3g, 6-31g, cc-pvdz, etc.) | sto-3g |
 | `--iterations` | VQE iterations per method | 1000 |
-| `--active-space` | Active space (electrons orbitals) | None |
+| `--active-space` | Active space (electrons orbitals) | Auto-selected |
 | `--freeze-core` | Use frozen core approximation | False |
 | `--layer-scaling` | Run layer scaling analysis | False |
 | `--max-layers` | Maximum layers for scaling | 4 |
@@ -199,6 +282,35 @@ logs/
   - PySCF (for molecular Hamiltonians)
   - Matplotlib, Seaborn (for visualization)
   - Pandas, NumPy (for data processing)
+
+## Usage Examples by Molecular Complexity
+
+### Small Molecules (2-6 electrons)
+```bash
+# Hydrogen molecule - perfect for testing
+python3 scripts/molecular_bp_analysis.py --molecule "H2" --geometry equilibrium --iterations 1000
+
+# Lithium hydride - ionic bonding
+python3 scripts/molecular_bp_analysis.py --molecule "LiH" --geometry stretched --basis 6-31g
+```
+
+### Medium Molecules (6-10 electrons)
+```bash
+# Beryllium hydride - covalent bonding
+python3 scripts/molecular_bp_analysis.py --molecule "BeH2" --geometry asymmetric --active-space 4 6
+
+# Water - bent geometry, hydrogen bonding
+python3 scripts/molecular_bp_analysis.py --molecule "H2O" --geometry bent --active-space 8 6 --iterations 800
+```
+
+### Large Molecules (>10 electrons)
+```bash
+# Nitrogen - triple bond
+python3 scripts/molecular_bp_analysis.py --molecule "N2" --geometry dissociation --active-space 6 8 --skip-landscapes
+
+# Methane - tetrahedral symmetry
+python3 scripts/molecular_bp_analysis.py --molecule "CH4" --active-space 8 6 --skip-landscapes --iterations 600
+```
 
 ## References
 
