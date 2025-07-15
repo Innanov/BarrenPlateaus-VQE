@@ -555,19 +555,17 @@ def run_basic_analysis(
             except Exception as e:
                 print(f"   ❌ Gradient diagnostics failed: {e}")
 
-            # Variance scaling theory
-            try:
-                visualizer.plot_variance_scaling_theory()
-                print("   ✅ Variance scaling theory")
-            except Exception as e:
-                print(f"   ❌ Variance scaling theory failed: {e}")
+            # # Variance scaling theory
+            # try:
+            #     visualizer.plot_variance_scaling_theory()
+            #     print("   ✅ Variance scaling theory")
+            # except Exception as e:
+            #     print(f"   ❌ Variance scaling theory failed: {e}")
 
             # Loss landscapes (if not skipped and system not too large)
             if not args.skip_landscapes and analyzer.num_qubits <= 10:
                 try:
-                    visualizer.plot_loss_landscapes(
-                        num_methods_to_plot=3, grid_size=args.landscape_grid
-                    )
+                    visualizer.plot_loss_landscapes(grid_size=args.landscape_grid)
                     print("   ✅ Loss landscapes")
                 except Exception as e:
                     print(f"   ❌ Loss landscapes failed: {e}")

@@ -801,7 +801,7 @@ class MolecularLandscapeVisualizer:
 
         # Add main title
         fig.suptitle(
-            f"Loss Landscapes: {self.molecular_context['title_prefix']}\n{self.molecular_context['system_info']}",
+            f"{self.molecular_context['title_prefix']} - {self.molecular_context['system_info']}",
             fontsize=12,
             fontweight="bold",
             y=0.95,
