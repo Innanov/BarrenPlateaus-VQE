@@ -176,3 +176,5 @@ data/
 plots/
 logs/
 configs/
+
+Manifest.toml
