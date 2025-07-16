@@ -1,13 +1,14 @@
 """
-# Visualization Module (`visualization.jl`)
+# Fixed Visualization Module (`visualization.jl`)
 
 High-performance visualization tools for molecular VQE barren plateau analysis.
+Fixed Printf.sprintf issues.
 
 Key Features:
 - Energy convergence plots
-- Gradient diagnostics visualization
+- 3D loss landscape visualization
+- Optimization trajectory visualization
 - Performance comparison tables
-- Loss landscape analysis (optional)
 - Export to publication-ready formats
 """
 
@@ -24,8 +25,15 @@ try
     try
         import PlotlyJS
         Plots.plotlyjs()
+        println("📊 Using PlotlyJS backend for interactive plots")
     catch
-        Plots.gr()  # Use GR backend as fallback
+        try
+            import GR
+            Plots.gr()
+            println("📊 Using GR backend for plots")
+        catch
+            println("📊 Using default backend for plots")
+        end
     end
 catch e
     @warn "Plots.jl not available: $e"
@@ -38,6 +46,77 @@ using CSV
 using Printf
 using Statistics
 using LinearAlgebra
+using Random
+
+# ============================================================================
+# Loss Landscape Analysis
+# ============================================================================
+
+"""
+    compute_loss_landscape_2d(cost_function, center_params::Vector{Float64};
+                              param_indices::Tuple{Int,Int}=(1,2),
+                              param_range::Float64=0.5,
+                              resolution::Int=50)
+
+Compute 2D loss landscape around a parameter point.
+"""
+function compute_loss_landscape_2d(cost_function, center_params::Vector{Float64};
+                                  param_indices::Tuple{Int,Int}=(1,2),
+                                  param_range::Float64=0.5,
+                                  resolution::Int=50)
+    
+    i, j = param_indices
+    if i > length(center_params) || j > length(center_params)
+        throw(ArgumentError("Parameter indices out of bounds"))
+    end
+    
+    # Create parameter grids
+    param_i_range = range(center_params[i] - param_range, 
+                         center_params[i] + param_range, 
+                         length=resolution)
+    param_j_range = range(center_params[j] - param_range,
+                         center_params[j] + param_range,
+                         length=resolution)
+    
+    # Compute loss landscape
+    landscape = zeros(resolution, resolution)
+    params_temp = copy(center_params)
+    
+    for (idx_i, val_i) in enumerate(param_i_range)
+        for (idx_j, val_j) in enumerate(param_j_range)
+            params_temp[i] = val_i
+            params_temp[j] = val_j
+            
+            try
+                landscape[idx_i, idx_j] = cost_function(params_temp)
+            catch
+                landscape[idx_i, idx_j] = NaN
+            end
+        end
+    end
+    
+    return param_i_range, param_j_range, landscape
+end
+
+"""
+    compute_optimization_trajectory_2d(parameter_history::Vector{Vector{Float64}};
+                                      param_indices::Tuple{Int,Int}=(1,2))
+
+Extract 2D trajectory from parameter history.
+"""
+function compute_optimization_trajectory_2d(parameter_history::Vector{Vector{Float64}};
+                                           param_indices::Tuple{Int,Int}=(1,2))
+    i, j = param_indices
+    
+    if isempty(parameter_history)
+        return Float64[], Float64[]
+    end
+    
+    trajectory_i = [params[i] for params in parameter_history if length(params) > max(i,j)]
+    trajectory_j = [params[j] for params in parameter_history if length(params) > max(i,j)]
+    
+    return trajectory_i, trajectory_j
+end
 
 # ============================================================================
 # Plotting Helper Functions
@@ -75,42 +154,6 @@ function safe_plot(args...; kwargs...)
 end
 
 """
-    safe_bar(args...; kwargs...)
-
-Safely create a bar plot.
-"""
-function safe_bar(args...; kwargs...)
-    if !check_plotting_available()
-        return create_text_placeholder("Plots.jl not available")
-    end
-    
-    try
-        return PLOTS_MODULE.bar(args...; kwargs...)
-    catch e
-        @warn "Bar plot creation failed: $e"
-        return create_text_placeholder("Bar plot creation failed")
-    end
-end
-
-"""
-    safe_scatter(args...; kwargs...)
-
-Safely create a scatter plot.
-"""
-function safe_scatter(args...; kwargs...)
-    if !check_plotting_available()
-        return create_text_placeholder("Plots.jl not available")
-    end
-    
-    try
-        return PLOTS_MODULE.scatter(args...; kwargs...)
-    catch e
-        @warn "Scatter plot creation failed: $e"
-        return create_text_placeholder("Scatter plot creation failed")
-    end
-end
-
-"""
     create_text_placeholder(message::String)
 
 Create a text-based placeholder when plotting is not available.
@@ -124,21 +167,23 @@ function create_text_placeholder(message::String)
 end
 
 # ============================================================================
-# Visualization Functions
+# Energy Convergence Visualization
 # ============================================================================
 
 """
     plot_energy_convergence(analyzer::MolecularVQEAnalyzer; 
                            save_path::Union{String, Nothing}=nothing,
                            show_exact::Bool=true,
-                           title_override::Union{String, Nothing}=nothing)
+                           title_override::Union{String, Nothing}=nothing,
+                           log_scale::Bool=false)
 
-Plot energy convergence for all VQE methods.
+Plot energy convergence for all VQE methods with enhanced visualization.
 """
 function plot_energy_convergence(analyzer::MolecularVQEAnalyzer; 
                                 save_path::Union{String, Nothing}=nothing,
                                 show_exact::Bool=true,
-                                title_override::Union{String, Nothing}=nothing)
+                                title_override::Union{String, Nothing}=nothing,
+                                log_scale::Bool=false)
     
     if isempty(analyzer.results)
         @warn "No results to plot. Run analysis first."
@@ -149,60 +194,73 @@ function plot_energy_convergence(analyzer::MolecularVQEAnalyzer;
         return create_text_placeholder("Plotting not available")
     end
     
-    # Create plot
-    p = safe_plot(size=(800, 600), dpi=300)
+    # Create main plot
+    p = safe_plot(size=(1000, 700), dpi=300, 
+                 title=title_override !== nothing ? title_override : 
+                       "Energy Convergence: $(analyzer.molecular_system.name)",
+                 xlabel="Iterations",
+                 ylabel=log_scale ? "log₁₀|Energy - Exact|" : "Energy",
+                 legend=:topright,
+                 grid=true,
+                 gridwidth=1,
+                 gridcolor=:gray,
+                 gridalpha=0.3)
+    
+    # Color palette for methods
+    colors = [:blue, :red, :green, :purple, :orange, :brown, :pink, :gray]
+    line_styles = [:solid, :dash, :dot, :dashdot, :dashdotdot]
+    
+    method_count = 0
+    valid_methods = []
     
     # Plot each method
-    colors = [:blue, :red, :green, :purple, :orange, :brown]
-    color_idx = 1
-    
     for (method_name, data) in analyzer.results
         if get(data["method_result"], "fallback", false)
             continue  # Skip fallback results
         end
         
+        method_count += 1
+        color = colors[((method_count-1) % length(colors)) + 1]
+        line_style = line_styles[((method_count-1) % length(line_styles)) + 1]
+        
         energies = data["method_result"]["vqe_result"].energy_history
         iterations = 1:length(energies)
         
+        if log_scale && show_exact
+            # Plot log scale of energy error
+            energy_errors = abs.(energies .- analyzer.exact_energy)
+            # Avoid log(0) by adding small epsilon
+            energy_errors = max.(energy_errors, 1e-12)
+            plot_energies = log10.(energy_errors)
+        else
+            plot_energies = energies
+        end
+        
         try
-            PLOTS_MODULE.plot!(p, iterations, energies, 
+            PLOTS_MODULE.plot!(p, iterations, plot_energies, 
                               label=method_name,
-                              linewidth=2,
-                              color=colors[color_idx],
+                              linewidth=3,
+                              color=color,
+                              linestyle=line_style,
                               alpha=0.8)
+            push!(valid_methods, method_name)
         catch e
             @warn "Failed to add line for $method_name: $e"
         end
-        
-        color_idx = (color_idx % length(colors)) + 1
     end
     
     # Add exact ground state line
-    if show_exact
+    if show_exact && !log_scale
         try
             PLOTS_MODULE.hline!(p, [analyzer.exact_energy], 
                                label="Exact Ground State",
                                linestyle=:dash,
                                linewidth=2,
                                color=:black,
-                               alpha=0.7)
+                               alpha=0.9)
         catch e
             @warn "Failed to add exact energy line: $e"
         end
-    end
-    
-    # Formatting
-    try
-        PLOTS_MODULE.xlabel!(p, "Iterations")
-        PLOTS_MODULE.ylabel!(p, "Energy")
-        
-        if title_override !== nothing
-            PLOTS_MODULE.title!(p, title_override)
-        else
-            PLOTS_MODULE.title!(p, "Energy Convergence: $(analyzer.molecular_system.name) ($(analyzer.molecular_system.geometry_type))")
-        end
-    catch e
-        @warn "Failed to format plot: $e"
     end
     
     # Save if requested
@@ -218,152 +276,221 @@ function plot_energy_convergence(analyzer::MolecularVQEAnalyzer;
     return p
 end
 
-"""
-    create_placeholder_plot(title::String, message::String)
-
-Create a placeholder plot when no data is available.
-"""
-function create_placeholder_plot(title::String, message::String)
-    if !check_plotting_available()
-        return create_text_placeholder("$title: $message")
-    end
-    
-    try
-        p = safe_plot(xlims=(0, 1), ylims=(0, 1), 
-                     title=title,
-                     legend=false,
-                     grid=false,
-                     showaxis=false,
-                     size=(600, 400))
-        
-        PLOTS_MODULE.annotate!(p, 0.5, 0.5, PLOTS_MODULE.text(message, :center, 14))
-        PLOTS_MODULE.annotate!(p, 0.5, 0.3, PLOTS_MODULE.text("Run analyzer.run_complete_analysis() first", :center, 10, :gray))
-        
-        return p
-    catch e
-        return create_text_placeholder("$title: $message")
-    end
-end
+# ============================================================================
+# 3D Loss Landscape Visualization
+# ============================================================================
 
 """
-    plot_gradient_diagnostics(analyzer::MolecularVQEAnalyzer;
-                             save_path::Union{String, Nothing}=nothing)
+    plot_loss_landscape_3d(cost_function, center_params::Vector{Float64};
+                           param_indices::Tuple{Int,Int}=(1,2),
+                           param_range::Float64=0.5,
+                           resolution::Int=30,
+                           show_trajectory::Bool=false,
+                           parameter_history::Union{Nothing, Vector{Vector{Float64}}}=nothing,
+                           save_path::Union{String, Nothing}=nothing)
 
-Plot comprehensive gradient diagnostics.
+Create 3D loss landscape visualization with optional optimization trajectory.
 """
-function plot_gradient_diagnostics(analyzer::MolecularVQEAnalyzer;
-                                  save_path::Union{String, Nothing}=nothing)
-    
-    if isempty(analyzer.results)
-        @warn "No results to plot. Run analysis first."
-        return create_placeholder_plot("No Results Available", "Run analysis first")
-    end
+function plot_loss_landscape_3d(cost_function, center_params::Vector{Float64};
+                                param_indices::Tuple{Int,Int}=(1,2),
+                                param_range::Float64=0.5,
+                                resolution::Int=30,
+                                show_trajectory::Bool=false,
+                                parameter_history::Union{Nothing, Vector{Vector{Float64}}}=nothing,
+                                save_path::Union{String, Nothing}=nothing)
     
     if !check_plotting_available()
-        return create_text_placeholder("Gradient diagnostics plotting not available")
+        return create_text_placeholder("3D plotting not available")
     end
     
-    # Extract data
-    methods = String[]
-    gradient_variances = Float64[]
-    gradient_norms = Float64[]
-    energy_errors = Float64[]
-    fidelities = Float64[]
+    println("🧮 Computing 3D loss landscape...")
+    param_i_range, param_j_range, landscape = compute_loss_landscape_2d(
+        cost_function, center_params;
+        param_indices=param_indices,
+        param_range=param_range,
+        resolution=resolution
+    )
     
-    for (method_name, data) in analyzer.results
-        if get(data["method_result"], "fallback", false)
-            continue  # Skip fallback results
-        end
-        
-        push!(methods, method_name)
-        push!(gradient_variances, data["bp_diagnostics"].gradient_variance)
-        push!(gradient_norms, data["bp_diagnostics"].gradient_norm_mean)
-        push!(energy_errors, data["performance_metrics"]["final_energy_error"])
-        push!(fidelities, data["performance_metrics"]["state_fidelity"])
-    end
-    
-    if isempty(methods)
-        @warn "No valid results to plot"
-        return create_placeholder_plot("No Valid Results", "All methods failed or returned fallback results")
-    end
-    
+    # Create surface plot
     try
-        # Create subplots
-        p1 = safe_bar(methods, gradient_variances, 
-                     title="Gradient Variance by Method",
-                     ylabel="Gradient Variance",
-                     yscale=:log10,
-                     xrotation=45,
-                     color=:steelblue,
-                     alpha=0.7)
+        p = PLOTS_MODULE.surface(collect(param_i_range), collect(param_j_range), landscape',
+                                title="VQE Loss Landscape",
+                                xlabel="Parameter $(param_indices[1])",
+                                ylabel="Parameter $(param_indices[2])",
+                                zlabel="Energy",
+                                camera=(45, 30),
+                                size=(800, 600),
+                                dpi=300,
+                                colorscale=:viridis,
+                                alpha=0.8)
         
-        p2 = safe_scatter(gradient_norms, energy_errors,
-                         series_annotations=methods,
-                         title="Gradient Norm vs Energy Error",
-                         xlabel="Gradient Norm Mean",
-                         ylabel="Final Energy Error",
-                         yscale=:log10,
-                         color=:red,
-                         alpha=0.7,
-                         markersize=6)
-        
-        p3 = safe_scatter(gradient_variances, fidelities,
-                         series_annotations=methods,
-                         title="Gradient Variance vs State Fidelity",
-                         xlabel="Gradient Variance",
-                         ylabel="State Fidelity",
-                         xscale=:log10,
-                         color=:green,
-                         alpha=0.7,
-                         markersize=6)
-        
-        # Normalized performance comparison
-        if length(methods) > 1
-            norm_variances = gradient_variances ./ maximum(gradient_variances)
-            norm_errors = energy_errors ./ maximum(energy_errors)
-            norm_fidelities = (1.0 .- fidelities)  # Invert so lower is better
+        # Add optimization trajectory if requested
+        if show_trajectory && parameter_history !== nothing
+            trajectory_i, trajectory_j = compute_optimization_trajectory_2d(
+                parameter_history; param_indices=param_indices
+            )
             
-            x_pos = 1:length(methods)
-            p4 = PLOTS_MODULE.groupedbar([norm_variances norm_errors norm_fidelities],
-                                        bar_position=:grouped,
-                                        title="Normalized Performance (lower is better)",
-                                        ylabel="Normalized Metric",
-                                        label=["Grad Variance" "Energy Error" "1 - Fidelity"],
-                                        xticks=(x_pos, methods),
-                                        xrotation=45,
-                                        alpha=0.7)
-        else
-            p4 = safe_plot(title="Need multiple methods for comparison")
+            if length(trajectory_i) > 1
+                # Compute trajectory energies
+                trajectory_energies = Float64[]
+                params_temp = copy(center_params)
+                
+                for k in 1:length(trajectory_i)
+                    params_temp[param_indices[1]] = trajectory_i[k]
+                    params_temp[param_indices[2]] = trajectory_j[k]
+                    try
+                        push!(trajectory_energies, cost_function(params_temp))
+                    catch
+                        push!(trajectory_energies, NaN)
+                    end
+                end
+                
+                # Add trajectory line
+                PLOTS_MODULE.plot!(p, trajectory_i, trajectory_j, trajectory_energies,
+                                  linewidth=4,
+                                  color=:red,
+                                  alpha=0.9,
+                                  label="Optimization Path")
+                
+                # Mark start and end points
+                if !isnan(trajectory_energies[1])
+                    PLOTS_MODULE.scatter!(p, [trajectory_i[1]], [trajectory_j[1]], [trajectory_energies[1]],
+                                         markersize=8,
+                                         color=:green,
+                                         label="Start",
+                                         markerstrokewidth=2,
+                                         markerstrokecolor=:white)
+                end
+                
+                if !isnan(trajectory_energies[end])
+                    PLOTS_MODULE.scatter!(p, [trajectory_i[end]], [trajectory_j[end]], [trajectory_energies[end]],
+                                         markersize=8,
+                                         color=:red,
+                                         label="End",
+                                         markerstrokewidth=2,
+                                         markerstrokecolor=:white)
+                end
+            end
         end
-        
-        # Combine plots
-        combined_plot = PLOTS_MODULE.plot(p1, p2, p3, p4, 
-                                         layout=(2, 2), 
-                                         size=(1200, 900),
-                                         plot_title="Gradient Diagnostics: $(analyzer.molecular_system.name)")
         
         # Save if requested
         if save_path !== nothing
             try
-                PLOTS_MODULE.savefig(combined_plot, save_path)
-                println("📊 Gradient diagnostics plot saved to: $save_path")
+                PLOTS_MODULE.savefig(p, save_path)
+                println("📊 3D loss landscape saved to: $save_path")
             catch e
-                @warn "Failed to save gradient diagnostics plot: $e"
+                @warn "Failed to save 3D plot: $e"
             end
         end
         
-        return combined_plot
+        return p
         
     catch e
-        @warn "Failed to create gradient diagnostics plot: $e"
-        return create_text_placeholder("Gradient diagnostics creation failed")
+        @warn "Failed to create 3D surface plot: $e"
+        return create_text_placeholder("3D surface plot creation failed")
     end
 end
 
 """
+    plot_loss_landscape_contour(cost_function, center_params::Vector{Float64};
+                                param_indices::Tuple{Int,Int}=(1,2),
+                                param_range::Float64=0.5,
+                                resolution::Int=50,
+                                show_trajectory::Bool=false,
+                                parameter_history::Union{Nothing, Vector{Vector{Float64}}}=nothing,
+                                save_path::Union{String, Nothing}=nothing)
+
+Create 2D contour plot of loss landscape with optimization trajectory.
+"""
+function plot_loss_landscape_contour(cost_function, center_params::Vector{Float64};
+                                     param_indices::Tuple{Int,Int}=(1,2),
+                                     param_range::Float64=0.5,
+                                     resolution::Int=50,
+                                     show_trajectory::Bool=false,
+                                     parameter_history::Union{Nothing, Vector{Vector{Float64}}}=nothing,
+                                     save_path::Union{String, Nothing}=nothing)
+    
+    if !check_plotting_available()
+        return create_text_placeholder("Contour plotting not available")
+    end
+    
+    println("🧮 Computing 2D contour landscape...")
+    param_i_range, param_j_range, landscape = compute_loss_landscape_2d(
+        cost_function, center_params;
+        param_indices=param_indices,
+        param_range=param_range,
+        resolution=resolution
+    )
+    
+    try
+        # Create contour plot
+        p = PLOTS_MODULE.contour(collect(param_i_range), collect(param_j_range), landscape',
+                                title="VQE Loss Landscape (Contour View)",
+                                xlabel="Parameter $(param_indices[1])",
+                                ylabel="Parameter $(param_indices[2])",
+                                size=(800, 600),
+                                dpi=300,
+                                fill=true,
+                                colorscale=:viridis,
+                                levels=20)
+        
+        # Add optimization trajectory if requested
+        if show_trajectory && parameter_history !== nothing
+            trajectory_i, trajectory_j = compute_optimization_trajectory_2d(
+                parameter_history; param_indices=param_indices
+            )
+            
+            if length(trajectory_i) > 1
+                # Add trajectory line
+                PLOTS_MODULE.plot!(p, trajectory_i, trajectory_j,
+                                  linewidth=3,
+                                  color=:red,
+                                  alpha=0.9,
+                                  label="Optimization Path")
+                
+                # Mark start and end points
+                PLOTS_MODULE.scatter!(p, [trajectory_i[1]], [trajectory_j[1]],
+                                     markersize=8,
+                                     color=:green,
+                                     label="Start",
+                                     markerstrokewidth=2,
+                                     markerstrokecolor=:white)
+                
+                PLOTS_MODULE.scatter!(p, [trajectory_i[end]], [trajectory_j[end]],
+                                     markersize=8,
+                                     color=:red,
+                                     label="End",
+                                     markerstrokewidth=2,
+                                     markerstrokecolor=:white)
+            end
+        end
+        
+        # Save if requested
+        if save_path !== nothing
+            try
+                PLOTS_MODULE.savefig(p, save_path)
+                println("📊 Loss landscape contour saved to: $save_path")
+            catch e
+                @warn "Failed to save contour plot: $e"
+            end
+        end
+        
+        return p
+        
+    catch e
+        @warn "Failed to create contour plot: $e"
+        return create_text_placeholder("Contour plot creation failed")
+    end
+end
+
+# ============================================================================
+# Quick Analysis Plot (Enhanced)
+# ============================================================================
+
+"""
     quick_analysis_plot(analyzer::MolecularVQEAnalyzer)
 
-Generate a quick summary plot for immediate analysis.
+Generate enhanced quick summary plot for immediate analysis.
 """
 function quick_analysis_plot(analyzer::MolecularVQEAnalyzer)
     if isempty(analyzer.results)
@@ -380,13 +507,13 @@ function quick_analysis_plot(analyzer::MolecularVQEAnalyzer)
                          legend=false,
                          grid=false,
                          showaxis=false,
-                         size=(600, 400))
+                         size=(700, 500))
             
-            PLOTS_MODULE.annotate!(p, 5, 8, PLOTS_MODULE.text("System: $(analyzer.molecular_system.name)", :center, 14))
-            PLOTS_MODULE.annotate!(p, 5, 7, PLOTS_MODULE.text("Qubits: $(analyzer.n_qubits)", :center, 12))
-            PLOTS_MODULE.annotate!(p, 5, 6, PLOTS_MODULE.text("Layers: $(analyzer.n_layers)", :center, 12))
-            PLOTS_MODULE.annotate!(p, 5, 4, PLOTS_MODULE.text("Ready for Analysis!", :center, 16, :green))
-            PLOTS_MODULE.annotate!(p, 5, 2, PLOTS_MODULE.text("Run: results = run_complete_analysis(analyzer)", :center, 10, :gray))
+            PLOTS_MODULE.annotate!(p, 5, 8, PLOTS_MODULE.text("System: $(analyzer.molecular_system.name)", :center, 16))
+            PLOTS_MODULE.annotate!(p, 5, 7, PLOTS_MODULE.text("Qubits: $(analyzer.n_qubits)", :center, 14))
+            PLOTS_MODULE.annotate!(p, 5, 6, PLOTS_MODULE.text("Layers: $(analyzer.n_layers)", :center, 14))
+            PLOTS_MODULE.annotate!(p, 5, 4, PLOTS_MODULE.text("Ready for Analysis!", :center, 18, :green))
+            PLOTS_MODULE.annotate!(p, 5, 2, PLOTS_MODULE.text("Run: results = run_complete_analysis(analyzer)", :center, 12, :gray))
             
             return p
         catch e
@@ -394,44 +521,73 @@ function quick_analysis_plot(analyzer::MolecularVQEAnalyzer)
         end
     end
     
-    # Create combined plot with results
+    # Create enhanced combined plot with results
     if !check_plotting_available()
         return create_text_placeholder("Analysis complete - plotting not available")
     end
     
     try
+        # Create subplots
         p1 = plot_energy_convergence(analyzer; show_exact=true)
         
-        # Quick bar chart of final energies
+        # Performance comparison bar chart
         methods = String[]
         final_energies = Float64[]
+        energy_errors = Float64[]
+        gradient_vars = Float64[]
         
         for (method_name, data) in analyzer.results
             if !get(data["method_result"], "fallback", false)
                 push!(methods, method_name)
                 push!(final_energies, data["method_result"]["vqe_result"].final_energy)
+                push!(energy_errors, data["performance_metrics"]["final_energy_error"])
+                push!(gradient_vars, data["bp_diagnostics"].gradient_variance)
             end
         end
         
         if !isempty(methods)
-            p2 = safe_bar(methods, final_energies,
-                         title="Final Energies",
-                         ylabel="Energy",
-                         xrotation=45,
-                         color=:orange,
-                         alpha=0.7)
+            # Energy comparison
+            p2 = PLOTS_MODULE.bar(methods, final_energies,
+                                 title="Final Energies",
+                                 ylabel="Energy",
+                                 xrotation=45,
+                                 color=:steelblue,
+                                 alpha=0.7,
+                                 legend=false)
             
             # Add exact energy line
             try
                 PLOTS_MODULE.hline!(p2, [analyzer.exact_energy], 
-                                   label="Exact",
                                    linestyle=:dash,
-                                   color=:black)
+                                   color=:red,
+                                   linewidth=2,
+                                   label="Exact")
             catch
                 # Continue without exact line if it fails
             end
             
-            combined = PLOTS_MODULE.plot(p1, p2, layout=(2, 1), size=(800, 800))
+            # Error comparison (log scale)
+            p3 = PLOTS_MODULE.bar(methods, log10.(energy_errors),
+                                 title="Energy Errors (log₁₀)",
+                                 ylabel="log₁₀(Energy Error)",
+                                 xrotation=45,
+                                 color=:coral,
+                                 alpha=0.7,
+                                 legend=false)
+            
+            # Gradient variance comparison
+            p4 = PLOTS_MODULE.bar(methods, log10.(gradient_vars),
+                                 title="Gradient Variance (log₁₀)",
+                                 ylabel="log₁₀(Gradient Variance)",
+                                 xrotation=45,
+                                 color=:lightgreen,
+                                 alpha=0.7,
+                                 legend=false)
+            
+            combined = PLOTS_MODULE.plot(p1, p2, p3, p4, 
+                                        layout=(2, 2), 
+                                        size=(1200, 900),
+                                        plot_title="VQE Analysis: $(analyzer.molecular_system.name)")
         else
             combined = p1
         end
@@ -445,15 +601,45 @@ function quick_analysis_plot(analyzer::MolecularVQEAnalyzer)
 end
 
 # ============================================================================
-# Performance Tables (No plotting dependencies)
+# Performance Tables (Fixed Printf Issues)
 # ============================================================================
+
+"""
+    safe_sprintf(fmt::String, args...)
+
+Safe sprintf function that handles format strings properly.
+"""
+function safe_sprintf(fmt::String, args...)
+    try
+        # Use @sprintf macro with literal format strings
+        if fmt == "%-20s %-12s %-12s %-15s %-12s %-10s"
+            return @sprintf("%-20s %-12s %-12s %-15s %-12s %-10s", args...)
+        elseif fmt == "%-20s %-12.2e %-12.3f %-15.2e %-12.2e %-10.1f"
+            return @sprintf("%-20s %-12.2e %-12.3f %-15.2e %-12.2e %-10.1f", args...)
+        elseif fmt == "%.3f"
+            return @sprintf("%.3f", args[1])
+        elseif fmt == "%.1f"
+            return @sprintf("%.1f", args[1])
+        elseif fmt == "%.2f"
+            return @sprintf("%.2f", args[1])
+        elseif fmt == "%.0f"
+            return @sprintf("%.0f", args[1])
+        else
+            # Fallback for other formats
+            return string(args[1])
+        end
+    catch e
+        @warn "sprintf failed: $e"
+        return string(args[1])  # Simple fallback
+    end
+end
 
 """
     create_performance_table(analyzer::MolecularVQEAnalyzer; 
                             save_csv::Union{String, Nothing}=nothing,
                             save_latex::Union{String, Nothing}=nothing)
 
-Create performance comparison table.
+Create performance comparison table with fixed Printf usage.
 """
 function create_performance_table(analyzer::MolecularVQEAnalyzer; 
                                  save_csv::Union{String, Nothing}=nothing,
@@ -510,20 +696,20 @@ function create_performance_table(analyzer::MolecularVQEAnalyzer;
     println("Qubits: $(analyzer.n_qubits), Layers: $(analyzer.n_layers)")
     println("="^80)
     
-    # Print formatted table
-    header = Printf.sprintf("%-20s %-12s %-12s %-15s %-12s %-10s", 
-                           "Method", "Energy Error", "Fidelity", "Grad Variance", "Grad Norm", "Time (s)")
+    # Print formatted table using safe_sprintf
+    header = safe_sprintf("%-20s %-12s %-12s %-15s %-12s %-10s", 
+                         "Method", "Energy Error", "Fidelity", "Grad Variance", "Grad Norm", "Time (s)")
     println(header)
     println("-"^length(header))
     
     for i in 1:nrow(df)
-        row = Printf.sprintf("%-20s %-12.2e %-12.3f %-15.2e %-12.2e %-10.1f",
-                            df.Method[i],
-                            df.Energy_Error[i],
-                            df.State_Fidelity[i],
-                            df.Gradient_Variance[i],
-                            df.Gradient_Norm[i],
-                            df.Execution_Time[i])
+        row = safe_sprintf("%-20s %-12.2e %-12.3f %-15.2e %-12.2e %-10.1f",
+                          df.Method[i],
+                          df.Energy_Error[i],
+                          df.State_Fidelity[i],
+                          df.Gradient_Variance[i],
+                          df.Gradient_Norm[i],
+                          df.Execution_Time[i])
         println(row)
     end
     println("="^80)
@@ -553,7 +739,7 @@ end
 """
     create_latex_table(df::DataFrame, analyzer::MolecularVQEAnalyzer, save_path::String)
 
-Create LaTeX formatted table.
+Create LaTeX formatted table with fixed Printf usage.
 """
 function create_latex_table(df::DataFrame, analyzer::MolecularVQEAnalyzer, save_path::String)
     latex_content = """
@@ -570,9 +756,9 @@ function create_latex_table(df::DataFrame, analyzer::MolecularVQEAnalyzer, save_
     for i in 1:nrow(df)
         method = replace(df.Method[i], "_" => "\\_")
         energy_error = format_scientific_latex(df.Energy_Error[i])
-        fidelity = Printf.sprintf("%.3f", df.State_Fidelity[i])
+        fidelity = safe_sprintf("%.3f", df.State_Fidelity[i])
         grad_var = format_scientific_latex(df.Gradient_Variance[i])
-        time_s = Printf.sprintf("%.1f", df.Execution_Time[i])
+        time_s = safe_sprintf("%.1f", df.Execution_Time[i])
         
         latex_content *= "$method & \$$(energy_error)\$ & \$$(fidelity)\$ & \$$(grad_var)\$ & \$$(time_s)\$ \\\\\n"
     end
@@ -593,7 +779,7 @@ end
 """
     format_scientific_latex(value::Float64; digits::Int=2)
 
-Format a number for LaTeX scientific notation.
+Format a number for LaTeX scientific notation using safe sprintf.
 """
 function format_scientific_latex(value::Float64; digits::Int=2)
     if value == 0.0
@@ -605,68 +791,232 @@ function format_scientific_latex(value::Float64; digits::Int=2)
     
     if abs(exponent) <= 3 && abs(value) >= 0.001
         # Use regular decimal notation
-        format_str = "%.$(digits)f"
-        return Printf.sprintf(format_str, value)
+        return safe_sprintf("%.$(digits)f", value)
     else
         # Use scientific notation
-        mantissa_format = "%.$(digits-1)f"
-        mantissa_str = Printf.sprintf(mantissa_format, mantissa)
+        mantissa_str = safe_sprintf("%.$(digits-1)f", mantissa)
         return "$(mantissa_str) \\times 10^{$(exponent)}"
     end
 end
 
 # ============================================================================
-# Stub Functions for Non-Critical Features
+# Comprehensive Visualization Pipeline
 # ============================================================================
+
+"""
+    create_comprehensive_visualization(analyzer::MolecularVQEAnalyzer;
+                                      output_dir::String="./plots",
+                                      param_indices::Tuple{Int,Int}=(1,2),
+                                      landscape_resolution::Int=30)
+
+Create comprehensive visualization including energy convergence and loss landscapes.
+"""
+function create_comprehensive_visualization(analyzer::MolecularVQEAnalyzer;
+                                           output_dir::String="./plots",
+                                           param_indices::Tuple{Int,Int}=(1,2),
+                                           landscape_resolution::Int=30)
+    
+    if isempty(analyzer.results)
+        @warn "No results to visualize. Run analysis first."
+        return
+    end
+    
+    if !check_plotting_available()
+        println("📊 Plotting not available, creating text summaries instead")
+        return
+    end
+    
+    # Create output directory
+    mkpath(output_dir)
+    println("📊 Creating comprehensive visualization suite...")
+    
+    # 1. Energy convergence plot
+    println("  📊 Energy convergence plot...")
+    try
+        conv_plot = plot_energy_convergence(analyzer; 
+                                           save_path=joinpath(output_dir, "energy_convergence.png"))
+        println("    ✓ Energy convergence plot saved")
+    catch e
+        @warn "Energy convergence plot failed: $e"
+    end
+    
+    # 2. Log-scale energy convergence plot
+    println("  📊 Log-scale energy convergence plot...")
+    try
+        conv_log_plot = plot_energy_convergence(analyzer; 
+                                               log_scale=true,
+                                               save_path=joinpath(output_dir, "energy_convergence_log.png"))
+        println("    ✓ Log-scale convergence plot saved")
+    catch e
+        @warn "Log-scale convergence plot failed: $e"
+    end
+    
+    # 3. Performance comparison table
+    println("  📊 Performance table...")
+    try
+        df = create_performance_table(analyzer, 
+                                     save_csv=joinpath(output_dir, "performance_table.csv"))
+        if df !== nothing
+            println("    ✓ Performance table saved")
+        end
+    catch e
+        @warn "Performance table failed: $e"
+    end
+    
+    # 4. Method-specific loss landscapes (limit to 2 for performance)
+    landscape_count = 0
+    max_landscapes = 2
+    
+    for (method_name, data) in analyzer.results
+        if get(data["method_result"], "fallback", false) || landscape_count >= max_landscapes
+            continue
+        end
+        
+        try
+            vqe_result = data["method_result"]["vqe_result"]
+            ansatz = data["method_result"]["ansatz_info"]["ansatz"]
+            final_params = vqe_result.final_parameters
+            param_history = vqe_result.parameter_history
+            
+            if length(final_params) >= max(param_indices...)
+                println("  📊 Creating landscapes for $method_name...")
+                
+                # Create method-specific cost function
+                function method_cost_function(params::Vector{Float64})
+                    return energy_evaluation(analyzer.hamiltonian, ansatz, params, analyzer.n_qubits)
+                end
+                
+                # Clean method name for filename
+                clean_name = replace(method_name, " " => "_", "/" => "_")
+                
+                # 3D landscape
+                try
+                    plot_loss_landscape_3d(
+                        method_cost_function, final_params;
+                        param_indices=param_indices,
+                        param_range=0.3,
+                        resolution=landscape_resolution,
+                        show_trajectory=true,
+                        parameter_history=param_history,
+                        save_path=joinpath(output_dir, "landscape_3d_$(clean_name).png")
+                    )
+                    println("    ✓ 3D landscape saved")
+                catch e
+                    @warn "3D landscape failed for $method_name: $e"
+                end
+                
+                # Contour landscape
+                try
+                    plot_loss_landscape_contour(
+                        method_cost_function, final_params;
+                        param_indices=param_indices,
+                        param_range=0.3,
+                        resolution=40,
+                        show_trajectory=true,
+                        parameter_history=param_history,
+                        save_path=joinpath(output_dir, "landscape_contour_$(clean_name).png")
+                    )
+                    println("    ✓ Contour landscape saved")
+                catch e
+                    @warn "Contour landscape failed for $method_name: $e"
+                end
+                
+                landscape_count += 1
+                
+            else
+                println("    ⚠️  Insufficient parameters for $method_name landscape")
+            end
+            
+        catch e
+            @warn "Landscape creation failed for $method_name: $e"
+        end
+    end
+    
+    println("📊 Comprehensive visualization completed!")
+    println("   Files saved to: $output_dir")
+end
+
+# ============================================================================
+# Placeholder Functions
+# ============================================================================
+
+"""
+    create_placeholder_plot(title::String, message::String)
+
+Create a placeholder plot when no data is available.
+"""
+function create_placeholder_plot(title::String, message::String)
+    if !check_plotting_available()
+        return create_text_placeholder("$title: $message")
+    end
+    
+    try
+        p = safe_plot(xlims=(0, 1), ylims=(0, 1), 
+                     title=title,
+                     legend=false,
+                     grid=false,
+                     showaxis=false,
+                     size=(600, 400))
+        
+        PLOTS_MODULE.annotate!(p, 0.5, 0.5, PLOTS_MODULE.text(message, :center, 14))
+        PLOTS_MODULE.annotate!(p, 0.5, 0.3, PLOTS_MODULE.text("Run analyzer.run_complete_analysis() first", :center, 10, :gray))
+        
+        return p
+    catch e
+        return create_text_placeholder("$title: $message")
+    end
+end
+
+# ============================================================================
+# Stub Functions for Compatibility
+# ============================================================================
+
+"""
+    plot_gradient_diagnostics(analyzer::MolecularVQEAnalyzer; kwargs...)
+
+Stub function for gradient diagnostics plotting.
+"""
+function plot_gradient_diagnostics(analyzer::MolecularVQEAnalyzer; kwargs...)
+    if !check_plotting_available()
+        return create_text_placeholder("Gradient diagnostics plotting not available")
+    end
+    
+    return create_text_placeholder("Gradient diagnostics not implemented yet")
+end
 
 """
     plot_method_comparison(analyzer::MolecularVQEAnalyzer; kwargs...)
 
-Plot method comparison (stub if plotting unavailable).
+Stub function for method comparison plotting.
 """
 function plot_method_comparison(analyzer::MolecularVQEAnalyzer; kwargs...)
     if !check_plotting_available()
         return create_text_placeholder("Method comparison plotting not available")
     end
     
-    # Implementation would go here...
     return create_text_placeholder("Method comparison not implemented yet")
 end
 
 """
     generate_all_plots(analyzer::MolecularVQEAnalyzer; kwargs...)
 
-Generate all plots (stub if plotting unavailable).
+Generate all available plots.
 """
 function generate_all_plots(analyzer::MolecularVQEAnalyzer; kwargs...)
+    output_dir = get(kwargs, :output_dir, "./plots")
+    
     if !check_plotting_available()
         @warn "Plotting not available. Install Plots.jl to enable visualization."
         return String[]
     end
     
-    generated_files = String[]
-    
     try
-        # Generate what we can
-        println("🎨 Generating available visualizations...")
-        
-        # Create performance table (always works)
-        output_dir = get(kwargs, :output_dir, "./plots")
-        mkpath(output_dir)
-        
-        prefix = "$(analyzer.molecular_system.name)_$(analyzer.molecular_system.geometry_type)"
-        csv_path = joinpath(output_dir, "$(prefix)_performance_table.csv")
-        
-        create_performance_table(analyzer; save_csv=csv_path)
-        push!(generated_files, csv_path)
-        
-        println("✅ Basic visualization generation complete!")
-        
+        create_comprehensive_visualization(analyzer; output_dir=output_dir)
+        return readdir(output_dir)
     catch e
-        @warn "Failed to generate visualizations: $e"
+        @warn "Plot generation failed: $e"
+        return String[]
     end
-    
-    return generated_files
 end
 
 """
@@ -718,6 +1068,9 @@ end
 # Exports
 # ============================================================================
 
-export plot_energy_convergence, plot_gradient_diagnostics, create_performance_table
-export plot_method_comparison, generate_all_plots, quick_analysis_plot
+export plot_energy_convergence, plot_loss_landscape_3d, plot_loss_landscape_contour
+export create_comprehensive_visualization, quick_analysis_plot
+export create_performance_table, create_latex_table
+export compute_loss_landscape_2d, compute_optimization_trajectory_2d
+export plot_gradient_diagnostics, plot_method_comparison, generate_all_plots
 export save_analysis_summary
