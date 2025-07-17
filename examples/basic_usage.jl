@@ -53,7 +53,7 @@ println("\nRunning Standard VQE with trajectory tracking...")
 vqe = StandardVQE(h2_system.n_qubits, 2)  # 2 layers for more parameters
 initial_params = random_initial_parameters(vqe.n_parameters)
 
-result = run_vqe(vqe, h2_system.hamiltonian, initial_params, 1000; verbose=false)
+result = run_vqe(vqe, h2_system.hamiltonian, initial_params, 10000; verbose=false)
 
 println("✓ Standard VQE completed!")
 println("  Final energy: $(round(result.final_energy, digits=6))")
@@ -63,120 +63,27 @@ println("  Converged: $(result.converged)")
 println("  Iterations: $(result.num_iterations)")
 println("  Parameters: $(vqe.n_parameters)")
 
-# Create single-method visualization
-println("\nCreating single-method visualizations...")
-try
-    # Energy convergence plot
-    energies = result.energy_history
-    iterations = 1:length(energies)
-    
-    # Manual plot creation to ensure it works
-    using Plots
-    
-    # Energy convergence
-    p1 = plot(iterations, energies, 
-             title="H₂ Standard VQE Energy Convergence",
-             xlabel="Iterations", 
-             ylabel="Energy",
-             linewidth=2,
-             color=:blue,
-             label="Standard VQE",
-             size=(800, 500))
-    
-    # Add exact energy line
-    hline!(p1, [h2_system.exact_energy], 
-           linestyle=:dash, 
-           color=:red, 
-           linewidth=2, 
-           label="Exact Ground State")
-    
-    savefig(p1, joinpath(output_dir, "h2_energy_convergence.png"))
-    println("  ✓ Energy convergence plot saved")
-    
-    # Log-scale energy error plot
-    energy_errors = abs.(energies .- h2_system.exact_energy)
-    energy_errors = max.(energy_errors, 1e-12)  # Avoid log(0)
-    
-    p2 = plot(iterations, log10.(energy_errors),
-             title="H₂ Standard VQE Energy Error (Log Scale)",
-             xlabel="Iterations",
-             ylabel="log₁₀(|Energy - Exact|)",
-             linewidth=2,
-             color=:purple,
-             label="Energy Error",
-             size=(800, 500))
-    
-    savefig(p2, joinpath(output_dir, "h2_energy_error_log.png"))
-    println("  ✓ Log-scale energy error plot saved")
-    
-    # 3D Loss landscape visualization
-    if vqe.n_parameters >= 2
-        println("  🧮 Computing 3D loss landscape...")
-        
-        # Create cost function
-        function h2_cost_function(params::Vector{Float64})
-            return energy_evaluation(h2_system.hamiltonian, vqe.ansatz, params, h2_system.n_qubits)
-        end
-        
-        # Use enhanced visualization functions
-        landscape_3d = plot_loss_landscape_3d(
-            h2_cost_function, result.final_parameters;
-            param_indices=(1,2),
-            param_range=0.4,
-            resolution=25,
-            show_trajectory=true,
-            parameter_history=result.parameter_history,
-            save_path=joinpath(output_dir, "h2_loss_landscape_3d.png")
-        )
-        println("  ✓ 3D loss landscape saved")
-        
-        # Contour landscape
-        landscape_contour = plot_loss_landscape_contour(
-            h2_cost_function, result.final_parameters;
-            param_indices=(1,2),
-            param_range=0.4,
-            resolution=40,
-            show_trajectory=true,
-            parameter_history=result.parameter_history,
-            save_path=joinpath(output_dir, "h2_loss_landscape_contour.png")
-        )
-        println("  ✓ Contour landscape saved")
-        
-        # Trajectory analysis
-        traj_i, traj_j = compute_optimization_trajectory_2d(result.parameter_history; param_indices=(1,2))
-        trajectory_length = sqrt(sum(diff(traj_i).^2 + diff(traj_j).^2))
-        println("  📊 Optimization trajectory length: $(round(trajectory_length, digits=4))")
-        println("  📊 Parameter path: $(length(traj_i)) points")
-    else
-        println("  ⚠️  Insufficient parameters for landscape visualization")
-    end
-    
-catch e
-    println("  ❌ Visualization failed: $e")
-    println("     This might be due to missing plotting packages")
-end
-
 # ============================================================================
-# Example 2: Multi-Method Comparison with Enhanced Analysis
+# Example 2: Multi-Method Comparison with Enhanced Analysis (All 5 Methods)
 # ============================================================================
 
 println("\n📋 Example 2: Multi-Method Comparison with Enhanced Visualization")
 println("-" ^ 60)
 
-# Create analyzer for LiH (more complex system)
-println("Setting up LiH analysis...")
-analyzer = MolecularVQEAnalyzer("LiH", geometry="equilibrium", n_layers=2)
-println("✓ LiH analyzer created: $(analyzer.n_qubits) qubits, $(analyzer.n_layers) layers")
+# Create analyzer for H2O (more complex system)
+println("Setting up H2O analysis...")
+analyzer = MolecularVQEAnalyzer("H2O", geometry="equilibrium", n_layers=2)
+println("✓ H2O analyzer created: $(analyzer.n_qubits) qubits, $(analyzer.n_layers) layers")
 println("  Exact ground state energy: $(round(analyzer.exact_energy, digits=6))")
 
-# Run comprehensive analysis with more methods
-methods_to_test = ["standard", "local_global", "sea"]
+# Run comprehensive analysis with ALL 5 methods
+methods_to_test = ["standard", "local_global", "sea", "adiabatic", "pretrained"]
 println("\nRunning comprehensive VQE analysis...")
 println("  Methods: $(join(methods_to_test, ", "))")
-println("  Iterations per method: 400")
+println("  Iterations per method: $(result.num_iterations)")
 
 results = run_complete_analysis(analyzer, 
-                               num_iters=400, 
+                               num_iters=10000, 
                                methods=methods_to_test, 
                                verbose=false)
 
@@ -231,7 +138,7 @@ for (method_name, data) in results
 end
 
 # ============================================================================
-# Example 3: Enhanced Visualization Suite
+# Example 3: Enhanced Visualization Suite (All Methods)
 # ============================================================================
 
 println("\n📋 Example 3: Enhanced Visualization Suite")
@@ -239,86 +146,26 @@ println("-" ^ 60)
 
 println("Creating comprehensive visualization suite...")
 try
-    # 1. Enhanced energy convergence comparison
-    conv_plot = plot_energy_convergence(analyzer, 
-                                       save_path=joinpath(output_dir, "lih_energy_convergence.png"),
-                                       show_exact=true)
+    # 1. Single energy convergence plot with all 5 methods
+    conv_plot = plot_all_methods_energy_convergence(analyzer, 
+                                                   save_path=joinpath(output_dir, "H2O_energy_convergence_all_methods.pdf"))
     println("✓ Multi-method energy convergence plot saved")
     
-    # 2. Log-scale convergence for detailed analysis
-    conv_log_plot = plot_energy_convergence(analyzer, 
-                                           log_scale=true,
-                                           save_path=joinpath(output_dir, "lih_energy_convergence_log.png"))
-    println("✓ Log-scale convergence plot saved")
+    # 2. Individual 3D loss landscapes for all methods
+    landscape_3d_files = plot_all_methods_loss_landscape_3d(analyzer,
+                                                           save_path=joinpath(output_dir, "dummy_3d.pdf"))
+    println("✓ Individual 3D loss landscapes saved")
     
-    # 3. Enhanced quick analysis plot
-    quick_plot = quick_analysis_plot(analyzer)
-    try
-        savefig(quick_plot, joinpath(output_dir, "lih_quick_analysis.png"))
-        println("✓ Quick analysis plot saved")
-    catch
-        println("✓ Quick analysis plot generated (display only)")
-    end
+    # 3. Individual contour landscapes for all methods  
+    landscape_contour_files = plot_all_methods_loss_landscape_contour(analyzer,
+                                                                     save_path=joinpath(output_dir, "dummy_contour.pdf"))
+    println("✓ Individual contour landscapes saved")
     
-    # 4. Performance comparison table
-    df = create_performance_table(analyzer, 
-                                 save_csv=joinpath(output_dir, "lih_performance_table.csv"))
+    # 4. Performance comparison table with all methods
+    df = create_performance_table_all_methods(analyzer, 
+                                             save_csv=joinpath(output_dir, "H2O_performance_table_all_methods.csv"))
     if df !== nothing
-        println("✓ Performance table saved")
-    end
-    
-    # 5. Method-specific loss landscapes
-    landscape_count = 0
-    for (method_name, data) in analyzer.results
-        if get(data["method_result"], "fallback", false) || landscape_count >= 2
-            continue  # Limit to 2 landscapes to save time
-        end
-        
-        try
-            vqe_result = data["method_result"]["vqe_result"]
-            ansatz = data["method_result"]["ansatz_info"]["ansatz"]
-            final_params = vqe_result.final_parameters
-            param_history = vqe_result.parameter_history
-            
-            if length(final_params) >= 2
-                println("  🧮 Creating loss landscape for $method_name...")
-                
-                # Create method-specific cost function
-                function method_cost_function(params::Vector{Float64})
-                    return energy_evaluation(analyzer.hamiltonian, ansatz, params, analyzer.n_qubits)
-                end
-                
-                # Clean method name for filename
-                clean_name = replace(method_name, " " => "_", "/" => "_")
-                
-                # 3D landscape
-                plot_loss_landscape_3d(
-                    method_cost_function, final_params;
-                    param_indices=(1,2),
-                    param_range=0.3,
-                    resolution=20,
-                    show_trajectory=true,
-                    parameter_history=param_history,
-                    save_path=joinpath(output_dir, "lih_landscape_3d_$(clean_name).png")
-                )
-                
-                # Contour landscape
-                plot_loss_landscape_contour(
-                    method_cost_function, final_params;
-                    param_indices=(1,2),
-                    param_range=0.3,
-                    resolution=30,
-                    show_trajectory=true,
-                    parameter_history=param_history,
-                    save_path=joinpath(output_dir, "lih_landscape_contour_$(clean_name).png")
-                )
-                
-                println("    ✓ Landscapes saved for $method_name")
-                landscape_count += 1
-            end
-        catch e
-            println("    ❌ Landscape creation failed for $method_name: $e")
-        end
+        println("✓ Performance table with all methods saved")
     end
     
 catch e
@@ -327,7 +174,7 @@ catch e
 end
 
 # ============================================================================
-# Example 4: Loss Landscape Analysis
+# Example 4: Detailed Loss Landscape Analysis
 # ============================================================================
 
 println("\n📋 Example 4: Detailed Loss Landscape Analysis")
