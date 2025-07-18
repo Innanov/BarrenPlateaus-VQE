@@ -8,14 +8,17 @@ variance changes with increasing circuit depth (number of layers) for different
 VQE methods. This is a key diagnostic for identifying barren plateaus.
 
 Key Analysis:
-- Tests 1 to 10 layers for each VQE method
+- Tests 1 to 20 layers for each VQE method
 - Computes gradient variance at multiple parameter points
 - Creates publication-ready plots showing scaling behavior
 - Identifies onset of barren plateau regime
 
-Supported Methods:
-- Standard VQE, Local-Global VQE, SEA VQE, Adiabatic VQE, Pretrained VQE
-- (All 5 VQE methods from BarrenPlateausVQE.jl)
+Supported Methods (all properly scale with layers):
+- Standard VQE: layers control ansatz depth
+- Local-Global VQE: layers control ansatz depth  
+- SEA VQE: layers control depth parameter [n_layers, n_layers, n_layers]
+- Adiabatic VQE: layers control ansatz depth
+- Pretrained VQE: layers control full ansatz depth
 
 Run this script with:
 ```bash
@@ -46,14 +49,18 @@ println("=" ^ 70)
 # ============================================================================
 
 # Analysis parameters
-MAX_LAYERS = 10
+MAX_LAYERS = 20
 MIN_LAYERS = 1
-N_PARAMETER_SAMPLES = 25  # Reduced from 50 for better reliability
-N_VQE_ITERATIONS = 200   # Fewer iterations since we're focusing on gradients
+N_PARAMETER_SAMPLES = 100  # Reduced from 50 for better reliability
+N_VQE_ITERATIONS = 1000   # Fewer iterations since we're focusing on gradients
 MOLECULES = ["H2O"]  # Test on multiple molecular systems
 
-# Methods to test (all 5 VQE methods)
+# Methods to test (all 5 VQE methods with proper layer scaling)
 METHODS_TO_TEST = ["standard", "local_global", "sea", "adiabatic", "pretrained"]
+
+# Note: SEA and PretrainedVQE now properly scale with layers:
+# - SEA: depth parameter scales all three sections [n_layers, n_layers, n_layers]
+# - PretrainedVQE: n_layers parameter controls the full ansatz depth
 
 # Create output directory
 output_dir = "./gradient_scaling_plots"
@@ -244,7 +251,10 @@ function run_layer_scaling_analysis(molecule_name, method_name, max_layers=10)
                 ansatz = vqe.ansatz
                 n_params = vqe.n_parameters
             elseif method_name == "sea"
-                vqe = SEAVQE(n_qubits)  # SEA doesn't use layers parameter
+                # SEA VQE can scale by varying the depth parameter
+                # Use the n_layers to control the depth of each section
+                depth_config = [n_layers, n_layers, n_layers]  # Scale all three sections
+                vqe = SEAVQE(n_qubits; depth=depth_config)
                 ansatz = vqe.ansatz
                 n_params = vqe.n_parameters
             elseif method_name == "adiabatic"
@@ -252,10 +262,10 @@ function run_layer_scaling_analysis(molecule_name, method_name, max_layers=10)
                 ansatz = vqe.ansatz
                 n_params = vqe.n_parameters
             elseif method_name == "pretrained"
-                # PretrainedVQE has different structure - use full ansatz for analysis
-                # Add extra error handling since this method seems problematic
+                # PretrainedVQE can scale by varying the n_layers parameter for the full ansatz
+                # Add extra error handling since this method can be problematic
                 try
-                    vqe = PretrainedVQE(n_qubits)
+                    vqe = PretrainedVQE(n_qubits; n_layers=n_layers)  # Scale with layers
                     ansatz = vqe.full_ansatz  # Use the full ansatz, not MPS
                     n_params = vqe.full_n_parameters  # Use full parameter count
                     
@@ -419,7 +429,7 @@ try
                     xlabel="Number of Layers", 
                     ylabel="Mean Gradient Variance",
                     yscale=:log10,
-                    legend=:topright,
+                    legend=:outerright,
                     grid=true,
                     gridwidth=1,
                     gridalpha=0.3,
@@ -429,7 +439,8 @@ try
                     legendfontsize=12,
                     left_margin=10Plots.mm,
                     bottom_margin=10Plots.mm,
-                    size=(1000, 700),
+                    right_margin=15Plots.mm,
+                    size=(1200, 700),
                     dpi=600)
         
         # Add data for each method
