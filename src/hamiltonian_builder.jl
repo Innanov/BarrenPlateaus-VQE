@@ -7,7 +7,7 @@ replicating the functionality of qubap's hamiltonian and cost function modules.
 Key Features:
 - Dynamic molecular Hamiltonian construction from quantum chemistry
 - global2local transformation for barren plateau mitigation
-- Support for H₂, LiH, BeH₂, H₂O, N₂, CO, NH₃, CH₄  
+- Support for H₂, LiH, BeH₂, H₂O, N₂, CO, NH₃, CH₄, HF, BH  
 - Classical solvers and energy evaluation
 - Test Hamiltonians for benchmarking
 - Proper basis set and active space handling
@@ -269,8 +269,8 @@ function determine_molecular_system_size(molecule::String, basis_set::String, ac
     # Basis function counts for common basis sets
     basis_functions = Dict(
         "sto-3g" => Dict("H"=>1, "Li"=>5, "Be"=>5, "B"=>9, "C"=>9, "N"=>9, "O"=>9, "F"=>9),
-        "6-31g" => Dict("H"=>2, "Li"=>9, "Be"=>9, "C"=>13, "N"=>13, "O"=>13, "F"=>13),
-        "cc-pvdz" => Dict("H"=>5, "Li"=>14, "C"=>23, "N"=>23, "O"=>23, "F"=>23)
+        "6-31g" => Dict("H"=>2, "Li"=>9, "Be"=>9, "B"=>13, "C"=>13, "N"=>13, "O"=>13, "F"=>13),
+        "cc-pvdz" => Dict("H"=>5, "Li"=>14, "B"=>23, "C"=>23, "N"=>23, "O"=>23, "F"=>23)
     )
     
     # Parse molecule to get atoms and electrons
@@ -290,6 +290,10 @@ function determine_molecular_system_size(molecule::String, basis_set::String, ac
         (["N", "N"], 14)
     elseif molecule == "CO"
         (["C", "O"], 14)
+    elseif molecule == "HF"
+        (["H", "F"], 10)
+    elseif molecule == "BH"
+        (["B", "H"], 6)
     else
         @warn "Unknown molecule $molecule, using H2"
         (["H", "H"], 2)
@@ -384,6 +388,171 @@ function compute_molecular_integrals(molecule::String, n_spatial_orbitals::Int,
                 else
                     h2e[i,i,j,j] = 0.4 / (1 + 0.5*abs(i-j))  # Inter-orbital
                     h2e[i,j,i,j] = 0.2 * exp(-0.3*abs(i-j))  # Exchange
+                end
+            end
+        end
+        
+    elseif molecule == "BeH2"
+        nuclear_repulsion = 4.0 / bond_length + 1.0 / (2*bond_length)  # Be-H + H-H repulsion
+        
+        # BeH2 integrals
+        for i in 1:min(n_spatial_orbitals, 5)
+            if i <= 2  # Be core orbitals
+                h1e[i,i] = -4.5 - 4.0/bond_length
+            elseif i <= 3  # Be valence
+                h1e[i,i] = -0.9 - 4.0/bond_length
+            else  # H orbitals
+                h1e[i,i] = -1.1 - 1.0/bond_length
+            end
+            
+            for j in 1:min(n_spatial_orbitals, 5)
+                if i == j
+                    h2e[i,i,i,i] = i <= 2 ? 1.2 : (i <= 3 ? 0.7 : 0.6)
+                else
+                    h2e[i,i,j,j] = 0.35 / (1 + 0.4*abs(i-j))
+                    h2e[i,j,i,j] = 0.18 * exp(-0.25*abs(i-j))
+                end
+            end
+        end
+        
+    elseif molecule == "HF"
+        nuclear_repulsion = 9.0 / bond_length  # H-F nuclear repulsion
+        
+        # HF integrals
+        for i in 1:min(n_spatial_orbitals, 5)
+            if i <= 4  # F orbitals (1s, 2s, 2px, 2py, 2pz)
+                if i == 1  # F 1s
+                    h1e[i,i] = -26.4 - 9.0/bond_length
+                elseif i == 2  # F 2s
+                    h1e[i,i] = -2.8 - 9.0/bond_length
+                else  # F 2p
+                    h1e[i,i] = -1.4 - 9.0/bond_length
+                end
+            else  # H orbital
+                h1e[i,i] = -1.1 - 1.0/bond_length
+            end
+            
+            for j in 1:min(n_spatial_orbitals, 5)
+                if i == j
+                    if i == 1  # F 1s
+                        h2e[i,i,i,i] = 3.2
+                    elseif i <= 4  # Other F orbitals
+                        h2e[i,i,i,i] = 1.1
+                    else  # H orbital
+                        h2e[i,i,i,i] = 0.6
+                    end
+                else
+                    h2e[i,i,j,j] = 0.7 / (1 + 0.3*abs(i-j))
+                    h2e[i,j,i,j] = 0.35 * exp(-0.2*abs(i-j))
+                end
+            end
+        end
+        
+    elseif molecule == "BH"
+        nuclear_repulsion = 5.0 / bond_length  # B-H nuclear repulsion
+        
+        # BH integrals
+        for i in 1:min(n_spatial_orbitals, 5)
+            if i <= 4  # B orbitals (1s, 2s, 2px, 2py, 2pz)
+                if i == 1  # B 1s
+                    h1e[i,i] = -7.8 - 5.0/bond_length
+                elseif i == 2  # B 2s
+                    h1e[i,i] = -0.5 - 5.0/bond_length
+                else  # B 2p
+                    h1e[i,i] = -0.2 - 5.0/bond_length
+                end
+            else  # H orbital
+                h1e[i,i] = -1.1 - 1.0/bond_length
+            end
+            
+            for j in 1:min(n_spatial_orbitals, 5)
+                if i == j
+                    if i == 1  # B 1s
+                        h2e[i,i,i,i] = 1.5
+                    elseif i <= 4  # Other B orbitals
+                        h2e[i,i,i,i] = 0.8
+                    else  # H orbital
+                        h2e[i,i,i,i] = 0.6
+                    end
+                else
+                    h2e[i,i,j,j] = 0.5 / (1 + 0.4*abs(i-j))
+                    h2e[i,j,i,j] = 0.25 * exp(-0.3*abs(i-j))
+                end
+            end
+        end
+        
+    elseif molecule == "N2"
+        nuclear_repulsion = 49.0 / bond_length  # N-N nuclear repulsion
+        
+        # N2 integrals (simplified for diatomic)
+        for i in 1:min(n_spatial_orbitals, 10)
+            if i <= 5  # First N atom
+                if i == 1  # N 1s
+                    h1e[i,i] = -15.6 - 7.0/bond_length
+                elseif i == 2  # N 2s
+                    h1e[i,i] = -1.5 - 7.0/bond_length
+                else  # N 2p
+                    h1e[i,i] = -0.8 - 7.0/bond_length
+                end
+            else  # Second N atom
+                if (i-5) == 1  # N 1s
+                    h1e[i,i] = -15.6 - 7.0/bond_length
+                elseif (i-5) == 2  # N 2s
+                    h1e[i,i] = -1.5 - 7.0/bond_length
+                else  # N 2p
+                    h1e[i,i] = -0.8 - 7.0/bond_length
+                end
+            end
+            
+            for j in 1:min(n_spatial_orbitals, 10)
+                if i == j
+                    if i == 1 || i == 6  # N 1s
+                        h2e[i,i,i,i] = 2.8
+                    else  # Other N orbitals
+                        h2e[i,i,i,i] = 1.2
+                    end
+                else
+                    h2e[i,i,j,j] = 0.8 / (1 + 0.2*abs(i-j))
+                    h2e[i,j,i,j] = 0.4 * exp(-0.15*abs(i-j))
+                end
+            end
+        end
+        
+    elseif molecule == "CO"
+        nuclear_repulsion = 48.0 / bond_length  # C-O nuclear repulsion
+        
+        # CO integrals
+        for i in 1:min(n_spatial_orbitals, 9)
+            if i <= 4  # C orbitals
+                if i == 1  # C 1s
+                    h1e[i,i] = -11.3 - 6.0/bond_length
+                elseif i == 2  # C 2s
+                    h1e[i,i] = -0.7 - 6.0/bond_length
+                else  # C 2p
+                    h1e[i,i] = -0.4 - 6.0/bond_length
+                end
+            else  # O orbitals
+                if (i-4) == 1  # O 1s
+                    h1e[i,i] = -20.7 - 8.0/bond_length
+                elseif (i-4) == 2  # O 2s
+                    h1e[i,i] = -1.3 - 8.0/bond_length
+                else  # O 2p
+                    h1e[i,i] = -0.6 - 8.0/bond_length
+                end
+            end
+            
+            for j in 1:min(n_spatial_orbitals, 9)
+                if i == j
+                    if i == 1  # C 1s
+                        h2e[i,i,i,i] = 2.1
+                    elseif i == 5  # O 1s
+                        h2e[i,i,i,i] = 3.1
+                    else  # Other orbitals
+                        h2e[i,i,i,i] = 1.1
+                    end
+                else
+                    h2e[i,i,j,j] = 0.7 / (1 + 0.25*abs(i-j))
+                    h2e[i,j,i,j] = 0.35 * exp(-0.2*abs(i-j))
                 end
             end
         end
@@ -589,6 +758,28 @@ function lih_hamiltonian(geometry::String="equilibrium")
 end
 
 """
+    beh2_hamiltonian(geometry::String="equilibrium")
+
+Generate BeH₂ Hamiltonian dynamically from quantum chemistry.
+"""
+function beh2_hamiltonian(geometry::String="equilibrium")
+    bond_lengths = Dict(
+        "equilibrium" => 1.33,
+        "stretched" => 2.0,
+        "compressed" => 1.0
+    )
+    
+    bond_length = get(bond_lengths, geometry, 1.33)
+    system_info = determine_molecular_system_size("BeH2", "sto-3g", (6, 5))  # Active space
+    n_spatial_orbitals = system_info["n_spatial_orbitals"]
+    
+    h1e, h2e, nuclear_repulsion = compute_molecular_integrals("BeH2", n_spatial_orbitals, bond_length)
+    pauli_terms, n_qubits = jordan_wigner_transform(h1e, h2e, nuclear_repulsion, n_spatial_orbitals)
+    
+    return create_pauli_hamiltonian(n_qubits, pauli_terms)
+end
+
+"""
     h2o_hamiltonian(; active_space::Tuple{Int,Int}=(8,6))
 
 Generate H₂O Hamiltonian with active space approximation.
@@ -598,6 +789,124 @@ function h2o_hamiltonian(; active_space::Tuple{Int,Int}=(8,6))
     n_spatial_orbitals = system_info["n_spatial_orbitals"]
     
     h1e, h2e, nuclear_repulsion = compute_molecular_integrals("H2O", n_spatial_orbitals)
+    pauli_terms, n_qubits = jordan_wigner_transform(h1e, h2e, nuclear_repulsion, n_spatial_orbitals)
+    
+    return create_pauli_hamiltonian(n_qubits, pauli_terms)
+end
+
+"""
+    n2_hamiltonian(geometry::String="equilibrium")
+
+Generate N₂ Hamiltonian dynamically from quantum chemistry.
+"""
+function n2_hamiltonian(geometry::String="equilibrium")
+    bond_lengths = Dict(
+        "equilibrium" => 1.098,
+        "stretched" => 1.5,
+        "compressed" => 0.9
+    )
+    
+    bond_length = get(bond_lengths, geometry, 1.098)
+    system_info = determine_molecular_system_size("N2", "sto-3g", (14, 10))  # Active space
+    n_spatial_orbitals = system_info["n_spatial_orbitals"]
+    
+    h1e, h2e, nuclear_repulsion = compute_molecular_integrals("N2", n_spatial_orbitals, bond_length)
+    pauli_terms, n_qubits = jordan_wigner_transform(h1e, h2e, nuclear_repulsion, n_spatial_orbitals)
+    
+    return create_pauli_hamiltonian(n_qubits, pauli_terms)
+end
+
+"""
+    co_hamiltonian(geometry::String="equilibrium")
+
+Generate CO Hamiltonian dynamically from quantum chemistry.
+"""
+function co_hamiltonian(geometry::String="equilibrium")
+    bond_lengths = Dict(
+        "equilibrium" => 1.128,
+        "stretched" => 1.6,
+        "compressed" => 1.0
+    )
+    
+    bond_length = get(bond_lengths, geometry, 1.128)
+    system_info = determine_molecular_system_size("CO", "sto-3g", (14, 9))  # Active space
+    n_spatial_orbitals = system_info["n_spatial_orbitals"]
+    
+    h1e, h2e, nuclear_repulsion = compute_molecular_integrals("CO", n_spatial_orbitals, bond_length)
+    pauli_terms, n_qubits = jordan_wigner_transform(h1e, h2e, nuclear_repulsion, n_spatial_orbitals)
+    
+    return create_pauli_hamiltonian(n_qubits, pauli_terms)
+end
+
+"""
+    nh3_hamiltonian(; active_space::Tuple{Int,Int}=(10,7))
+
+Generate NH₃ Hamiltonian with active space approximation.
+"""
+function nh3_hamiltonian(; active_space::Tuple{Int,Int}=(10,7))
+    system_info = determine_molecular_system_size("NH3", "sto-3g", active_space)
+    n_spatial_orbitals = system_info["n_spatial_orbitals"]
+    
+    h1e, h2e, nuclear_repulsion = compute_molecular_integrals("NH3", n_spatial_orbitals)
+    pauli_terms, n_qubits = jordan_wigner_transform(h1e, h2e, nuclear_repulsion, n_spatial_orbitals)
+    
+    return create_pauli_hamiltonian(n_qubits, pauli_terms)
+end
+
+"""
+    ch4_hamiltonian(; active_space::Tuple{Int,Int}=(10,8))
+
+Generate CH₄ Hamiltonian with active space approximation.
+"""
+function ch4_hamiltonian(; active_space::Tuple{Int,Int}=(10,8))
+    system_info = determine_molecular_system_size("CH4", "sto-3g", active_space)
+    n_spatial_orbitals = system_info["n_spatial_orbitals"]
+    
+    h1e, h2e, nuclear_repulsion = compute_molecular_integrals("CH4", n_spatial_orbitals)
+    pauli_terms, n_qubits = jordan_wigner_transform(h1e, h2e, nuclear_repulsion, n_spatial_orbitals)
+    
+    return create_pauli_hamiltonian(n_qubits, pauli_terms)
+end
+
+"""
+    hf_hamiltonian(geometry::String="equilibrium")
+
+Generate HF Hamiltonian dynamically from quantum chemistry.
+"""
+function hf_hamiltonian(geometry::String="equilibrium")
+    bond_lengths = Dict(
+        "equilibrium" => 0.917,
+        "stretched" => 1.5,
+        "compressed" => 0.7
+    )
+    
+    bond_length = get(bond_lengths, geometry, 0.917)
+    system_info = determine_molecular_system_size("HF", "sto-3g", (10, 5))  # Active space
+    n_spatial_orbitals = system_info["n_spatial_orbitals"]
+    
+    h1e, h2e, nuclear_repulsion = compute_molecular_integrals("HF", n_spatial_orbitals, bond_length)
+    pauli_terms, n_qubits = jordan_wigner_transform(h1e, h2e, nuclear_repulsion, n_spatial_orbitals)
+    
+    return create_pauli_hamiltonian(n_qubits, pauli_terms)
+end
+
+"""
+    bh_hamiltonian(geometry::String="equilibrium")
+
+Generate BH Hamiltonian dynamically from quantum chemistry.
+"""
+function bh_hamiltonian(geometry::String="equilibrium")
+    bond_lengths = Dict(
+        "equilibrium" => 1.232,
+        "stretched" => 1.8,
+        "compressed" => 1.0
+    )
+    
+    bond_length = get(bond_lengths, geometry, 1.232)
+    system_info = determine_molecular_system_size("BH", "sto-3g", (6, 5))  # Active space
+    n_spatial_orbitals = system_info["n_spatial_orbitals"]
+    
+    h1e, h2e, nuclear_repulsion = compute_molecular_integrals("BH", n_spatial_orbitals, bond_length)
     pauli_terms, n_qubits = jordan_wigner_transform(h1e, h2e, nuclear_repulsion, n_spatial_orbitals)
     
     return create_pauli_hamiltonian(n_qubits, pauli_terms)
@@ -626,8 +935,14 @@ function create_molecular_hamiltonian(molecule::String;
         bond_lengths = Dict(
             "h2" => Dict("equilibrium" => 0.735, "stretched" => 1.5, "compressed" => 0.5),
             "lih" => Dict("equilibrium" => 1.595, "stretched" => 2.5, "compressed" => 1.2),
-            "beh2" => Dict("equilibrium" => 1.33, "stretched" => 2.0),
-            "h2o" => Dict("equilibrium" => 1.0, "stretched" => 1.2)
+            "beh2" => Dict("equilibrium" => 1.33, "stretched" => 2.0, "compressed" => 1.0),
+            "h2o" => Dict("equilibrium" => 1.0, "stretched" => 1.2, "compressed" => 0.8),
+            "n2" => Dict("equilibrium" => 1.098, "stretched" => 1.5, "compressed" => 0.9),
+            "co" => Dict("equilibrium" => 1.128, "stretched" => 1.6, "compressed" => 1.0),
+            "nh3" => Dict("equilibrium" => 1.012, "stretched" => 1.3, "compressed" => 0.9),
+            "ch4" => Dict("equilibrium" => 1.087, "stretched" => 1.3, "compressed" => 0.9),
+            "hf" => Dict("equilibrium" => 0.917, "stretched" => 1.5, "compressed" => 0.7),
+            "bh" => Dict("equilibrium" => 1.232, "stretched" => 1.8, "compressed" => 1.0)
         )
         bond_length = get(get(bond_lengths, molecule_lower, Dict()), geometry, 1.0)
     end
@@ -667,7 +982,9 @@ const MOLECULAR_PROPERTIES = Dict(
     "NH3" => (charge=0, spin=0, electrons=10),
     "CH4" => (charge=0, spin=0, electrons=10),
     "N2" => (charge=0, spin=0, electrons=14),
-    "CO" => (charge=0, spin=0, electrons=14)
+    "CO" => (charge=0, spin=0, electrons=14),
+    "HF" => (charge=0, spin=0, electrons=10),
+    "BH" => (charge=0, spin=0, electrons=6)
 )
 
 # ============================================================================
@@ -768,13 +1085,53 @@ function gradient_variance(cost_func, parameters::Vector{Float64}; epsilon::Floa
 end
 
 # ============================================================================
+# Molecular System Factory Functions
+# ============================================================================
+
+"""
+    get_supported_molecules()
+
+Return list of all supported molecules.
+"""
+function get_supported_molecules()
+    return ["H2", "LiH", "BeH2", "H2O", "N2", "CO", "NH3", "CH4", "HF", "BH"]
+end
+
+"""
+    get_molecule_info(molecule::String)
+
+Get detailed information about a specific molecule.
+"""
+function get_molecule_info(molecule::String)
+    if !(molecule in get_supported_molecules())
+        throw(ArgumentError("Molecule $molecule not supported. Supported molecules: $(get_supported_molecules())"))
+    end
+    
+    system_info = determine_molecular_system_size(molecule, "sto-3g")
+    mol_props = get(MOLECULAR_PROPERTIES, molecule, (charge=0, spin=0, electrons=system_info["total_electrons"]))
+    
+    return Dict(
+        "molecule" => molecule,
+        "atoms" => system_info["atoms"],
+        "electrons" => system_info["total_electrons"],
+        "charge" => mol_props.charge,
+        "spin" => mol_props.spin,
+        "min_qubits_sto3g" => system_info["n_qubits"],
+        "spatial_orbitals_sto3g" => system_info["n_spatial_orbitals"]
+    )
+end
+
+# ============================================================================
 # Exports
 # ============================================================================
 
 export pauli_string, create_pauli_hamiltonian
 export global2local, global_observable, local_observable  
 export test_hamiltonian, ladder_hamiltonian
-export h2_hamiltonian, lih_hamiltonian, h2o_hamiltonian, create_molecular_hamiltonian
+export h2_hamiltonian, lih_hamiltonian, beh2_hamiltonian, h2o_hamiltonian
+export n2_hamiltonian, co_hamiltonian, nh3_hamiltonian, ch4_hamiltonian
+export hf_hamiltonian, bh_hamiltonian, create_molecular_hamiltonian
 export classical_solver, energy_evaluation, expectation_value
 export gradient_finite_diff, gradient_variance
 export determine_molecular_system_size, compute_molecular_integrals, jordan_wigner_transform
+export get_supported_molecules, get_molecule_info

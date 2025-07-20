@@ -178,3 +178,5 @@ logs/
 configs/
 
 Manifest.toml
+example_plots
+gradient_scaling_plots
