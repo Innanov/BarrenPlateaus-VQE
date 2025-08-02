@@ -127,7 +127,7 @@ function parse_commandline()
         "--iterations", "-i"
             help = "Number of VQE optimization iterations"
             arg_type = Int
-            default = 1000
+            default = 100
         
         "--output-dir", "-o"
             help = "Base output directory for results"

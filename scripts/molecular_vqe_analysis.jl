@@ -99,7 +99,7 @@ function parse_commandline()
         "--iterations", "-i"
             help = "Number of optimization iterations per method"
             arg_type = Int
-            default = 1000
+            default = 100
         
         "--methods"
             help = "Comma-separated list of VQE methods to test (standard,local_global,sea,adiabatic,pretrained) or 'all'"

@@ -96,6 +96,7 @@ include("methods/pretrained_vqe.jl")
 # Include analysis and visualization
 include("molecular_analyzer.jl") 
 include("visualization.jl")
+include("circuit_visualization.jl")
 
 # ============================================================================
 # Missing Function Definitions (Compatibility Layer)

@@ -180,3 +180,4 @@ configs/
 Manifest.toml
 example_plots
 gradient_scaling_plots
+circuit_plots
