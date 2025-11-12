@@ -82,38 +82,7 @@ function efficient_su2_ansatz(
     return full_circuit, param_count
 end
 
-"""
-    create_entangling_layer(n_qubits::Int, entanglement::String)
-
-Create entangling layer with specified connectivity pattern.
-"""
-function create_entangling_layer(n_qubits::Int, entanglement::String)
-    entangling_gates = AbstractBlock[]
-
-    if entanglement == "circular"
-        # Circular connectivity: 0-1, 1-2, ..., (n-1)-0
-        for i in 1:n_qubits
-            target = i == n_qubits ? 1 : i + 1
-            push!(entangling_gates, cnot(n_qubits, i, target))
-        end
-    elseif entanglement == "linear"
-        # Linear connectivity: 0-1, 1-2, ..., (n-2)-(n-1)
-        for i in 1:(n_qubits - 1)
-            push!(entangling_gates, cnot(n_qubits, i, i+1))
-        end
-    elseif entanglement == "full"
-        # Full connectivity: all pairs
-        for i in 1:n_qubits
-            for j in (i + 1):n_qubits
-                push!(entangling_gates, cnot(n_qubits, i, j))
-            end
-        end
-    else
-        throw(ArgumentError("Unknown entanglement pattern: $entanglement"))
-    end
-
-    return chain(n_qubits, entangling_gates...)
-end
+# Note: create_entangling_layer is defined in ansatz_library.jl
 
 # ============================================================================
 # SPSA Optimizer (replicating qubap's SPSA functionality)

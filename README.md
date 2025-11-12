@@ -170,21 +170,28 @@ analysis = analyze_circuit_architectures(analyzer)
 BarrenPlateaus-VQE/
 ├── src/
 │   ├── BarrenPlateausVQE.jl        # Main module
-│   ├── hamiltonian_builder.jl      # Molecular Hamiltonians
-│   ├── quantum_utils.jl            # Quantum utilities
-│   ├── molecular_analyzer.jl       # Analysis framework
-│   ├── visualization.jl            # Plotting
-│   ├── circuit_visualization.jl    # Circuit plots
-│   └── methods/                    # VQE implementations
-│       ├── standard_vqe.jl
-│       ├── local_global_vqe.jl
-│       ├── adiabatic_vqe.jl
-│       ├── sea_vqe.jl
-│       └── pretrained_vqe.jl
+│   │
+│   ├── core/                        # Core VQE components
+│   │   ├── hamiltonian_builder.jl   # Molecular Hamiltonians
+│   │   ├── ansatz_library.jl        # Quantum ansatz circuits
+│   │   ├── molecular_analyzer.jl    # Analysis framework
+│   │   └── methods/                 # VQE implementations
+│   │       ├── standard_vqe.jl
+│   │       ├── local_global_vqe.jl
+│   │       ├── adiabatic_vqe.jl
+│   │       ├── sea_vqe.jl
+│   │       └── pretrained_vqe.jl
+│   │
+│   └── utils/                       # Utility modules
+│       ├── quantum_utils.jl         # Quantum utilities
+│       ├── visualization.jl         # Plotting & analysis
+│       └── circuit_visualization.jl # Circuit diagrams
+│
 ├── scripts/
 │   ├── molecular_vqe_analysis.jl
 │   ├── gradient_variance_scaling.jl
 │   └── generate_circuit_plots.jl
+│
 └── test/
     └── basic_tests.jl
 ```

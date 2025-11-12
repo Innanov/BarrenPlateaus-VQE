@@ -74,20 +74,24 @@ end
 # Include Core Modules (order matters due to dependencies)
 # ============================================================================
 
-include("hamiltonian_builder.jl")
-include("quantum_utils.jl")
+# Core modules
+include("core/hamiltonian_builder.jl")
+include("core/ansatz_library.jl")
+
+# Utility modules
+include("utils/quantum_utils.jl")
 
 # Include VQE methods (order matters due to dependencies)
-include("methods/standard_vqe.jl")
-include("methods/sea_vqe.jl")
-include("methods/local_global_vqe.jl")
-include("methods/adiabatic_vqe.jl")
-include("methods/pretrained_vqe.jl")
+include("core/methods/standard_vqe.jl")
+include("core/methods/sea_vqe.jl")
+include("core/methods/local_global_vqe.jl")
+include("core/methods/adiabatic_vqe.jl")
+include("core/methods/pretrained_vqe.jl")
 
 # Include analysis and visualization
-include("molecular_analyzer.jl")
-include("visualization.jl")
-include("circuit_visualization.jl")
+include("core/molecular_analyzer.jl")
+include("utils/visualization.jl")
+include("utils/circuit_visualization.jl")
 
 # ============================================================================
 # Utility Function Definitions

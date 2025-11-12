@@ -2,12 +2,6 @@
 # Circuit Visualization Module (`circuit_visualization.jl`)
 
 Simple, focused module for generating YaoPlots circuit visualizations of VQE method ansatzes.
-
-Key Features:
-- Direct ansatz extraction from VQE method instances
-- YaoPlots-based circuit diagrams saved as SVG files
-- Individual plots for each VQE method
-- Comprehensive analysis and comparison reports
 """
 
 module CircuitVisualization
