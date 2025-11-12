@@ -94,7 +94,7 @@ include("methods/adiabatic_vqe.jl")
 include("methods/pretrained_vqe.jl")
 
 # Include analysis and visualization
-include("molecular_analyzer.jl") 
+include("molecular_analyzer.jl")
 include("visualization.jl")
 include("circuit_visualization.jl")
 
@@ -110,33 +110,33 @@ Create a simplified MPS-inspired ansatz circuit.
 function mps_ansatz(n_qubits::Int; bond_dimension::Int=2)
     circuit_blocks = AbstractBlock[]
     param_count = 0
-    
+
     # Initial single-qubit rotations
     for i in 1:n_qubits
         push!(circuit_blocks, put(n_qubits, i => Ry(0.0)))
         push!(circuit_blocks, put(n_qubits, i => Rz(0.0)))
         param_count += 2
     end
-    
+
     # MPS-like nearest-neighbor structure
     for layer in 1:bond_dimension
         # Forward sweep
-        for i in 1:(n_qubits-1)
+        for i in 1:(n_qubits - 1)
             push!(circuit_blocks, cnot(n_qubits, i, i+1))
             push!(circuit_blocks, put(n_qubits, i+1 => Ry(0.0)))
             param_count += 1
         end
-        
+
         # Backward sweep (if more than one layer)
         if layer < bond_dimension && n_qubits > 2
-            for i in (n_qubits-1):-1:2
+            for i in (n_qubits - 1):-1:2
                 push!(circuit_blocks, cnot(n_qubits, i, i-1))
                 push!(circuit_blocks, put(n_qubits, i-1 => Ry(0.0)))
                 param_count += 1
             end
         end
     end
-    
+
     full_circuit = chain(n_qubits, circuit_blocks...)
     return full_circuit, param_count
 end
@@ -149,66 +149,81 @@ end
 
 Run all VQE methods for comparison.
 """
-function run_all_vqe_methods(hamiltonian::AbstractBlock, n_qubits::Int;
-                            max_iterations::Int=1000,
-                            n_layers::Int=1,
-                            verbose::Bool=true)
-    
-    results = Dict{String, Any}()
-    
+function run_all_vqe_methods(
+    hamiltonian::AbstractBlock,
+    n_qubits::Int;
+    max_iterations::Int=1000,
+    n_layers::Int=1,
+    verbose::Bool=true,
+)
+    results = Dict{String,Any}()
+
     # Test each method individually with error handling
     methods = [
         ("StandardVQE", () -> StandardVQE(n_qubits, n_layers)),
         ("SEAVQE", () -> SEAVQE(n_qubits)),
         ("LocalGlobalVQE", () -> LocalGlobalVQE(n_qubits, n_layers)),
         ("AdiabaticVQE", () -> AdiabaticVQE(n_qubits, n_layers)),
-        ("PretrainedVQE", () -> PretrainedVQE(n_qubits))
+        ("PretrainedVQE", () -> PretrainedVQE(n_qubits)),
     ]
-    
+
     for (method_name, constructor) in methods
         if verbose
             println("\n" * "="^60)
             println("Running $method_name...")
             println("="^60)
         end
-        
+
         try
             vqe = constructor()
             initial_params = random_initial_parameters(vqe.n_parameters)
-            
+
             if method_name == "PretrainedVQE"
                 # Special handling for PretrainedVQE
-                result = run_vqe(vqe, hamiltonian, div(max_iterations, 2), div(max_iterations, 4))
+                result = run_vqe(
+                    vqe, hamiltonian, div(max_iterations, 2), div(max_iterations, 4)
+                )
                 # Convert to standard format
                 final_energy = haskey(result, "full") ? result["full"]["final_energy"] : 0.0
-                results[method_name] = VQEResult(method_name, Float64[final_energy], 
-                                               Vector{Float64}[], final_energy, Float64[], 
-                                               max_iterations, true, 0.0)
+                results[method_name] = VQEResult(
+                    method_name,
+                    Float64[final_energy],
+                    Vector{Float64}[],
+                    final_energy,
+                    Float64[],
+                    max_iterations,
+                    true,
+                    0.0,
+                )
             else
-                result = run_vqe(vqe, hamiltonian, initial_params, max_iterations; verbose=verbose)
+                result = run_vqe(
+                    vqe, hamiltonian, initial_params, max_iterations; verbose=verbose
+                )
                 results[method_name] = result
             end
-            
+
         catch e
             if verbose
                 @warn "$method_name failed: $e"
             end
             # Create fallback result
-            results[method_name] = VQEResult(method_name, [1.0], [rand(10)], 1.0, rand(10), 1, false, 0.0)
+            results[method_name] = VQEResult(
+                method_name, [1.0], [rand(10)], 1.0, rand(10), 1, false, 0.0
+            )
         end
     end
-    
+
     if verbose
         println("\n" * "="^60)
         println("All VQE methods completed!")
         println("="^60)
-        
+
         # Print summary
         for (method_name, result) in results
             println("$method_name: Final energy = $(result.final_energy)")
         end
     end
-    
+
     return results
 end
 
@@ -237,7 +252,8 @@ export exact_ground_state_energy
 
 # Analysis exports  
 export MolecularVQEAnalyzer, run_complete_analysis
-export run_standard_vqe, run_local_global_vqe, run_adiabatic_vqe, run_sea_vqe, run_pretrained_vqe
+export run_standard_vqe,
+    run_local_global_vqe, run_adiabatic_vqe, run_sea_vqe, run_pretrained_vqe
 export compute_bp_diagnostics, compute_performance_metrics, generate_summary_table
 
 # Visualization exports
@@ -249,7 +265,7 @@ function __init__()
     println("🚀 BarrenPlateausVQE.jl initialized")
     println("   High-performance VQE barren plateau analysis")
     println("   Julia $(VERSION) with Yao.jl quantum computing backend")
-    
+
     # Set random seed for reproducibility
     Random.seed!(42)
 end

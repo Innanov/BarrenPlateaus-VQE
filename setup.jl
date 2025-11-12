@@ -51,7 +51,7 @@ println("-" ^ 40)
 try
     Pkg.activate(".")
     println("✅ Project environment activated")
-    
+
     project_info = Pkg.project()
     println("    📦 Project: $(project_info.name) v$(project_info.version)")
 catch e
@@ -72,16 +72,16 @@ try
     # Resolve dependencies first
     println("  🔧 Resolving dependencies...")
     Pkg.resolve()
-    
+
     # Install core dependencies
     println("  📦 Installing core packages...")
     Pkg.instantiate()
-    
+
     println("✅ Core dependencies installed successfully")
-    
+
 catch e
     println("❌ Core dependency installation failed: $e")
-    
+
     # Recovery attempt
     println("\n🔄 Attempting recovery...")
     try
@@ -107,7 +107,7 @@ optional_packages = [
     ("YaoPlots", "Circuit visualization", true),      # High priority
     ("StatsPlots", "Statistical plotting", false),   # Medium priority  
     ("GR", "GR plotting backend", false),            # Low priority (problematic on Windows)
-    ("PyCall", "Python integration", false)          # Optional
+    ("PyCall", "Python integration", false),          # Optional
 ]
 
 successful_optional = String[]
@@ -115,7 +115,7 @@ failed_optional = String[]
 
 for (pkg_name, description, is_critical) in optional_packages
     print("  📦 Installing $pkg_name ($description)...")
-    
+
     try
         Pkg.add(pkg_name)
         println(" ✅")
@@ -153,7 +153,7 @@ core_packages = [
     ("YaoBlocks", "using YaoBlocks"),
     ("YaoArrayRegister", "using YaoArrayRegister"),
     ("Optim", "using Optim"),
-    ("ForwardDiff", "using ForwardDiff")
+    ("ForwardDiff", "using ForwardDiff"),
 ]
 
 global core_working = true
@@ -191,7 +191,7 @@ end
 if plotting_backend === nothing
     try
         eval(Meta.parse("using GR"))
-        eval(Meta.parse("using Plots"))  
+        eval(Meta.parse("using Plots"))
         eval(Meta.parse("Plots.gr()"))
         println("  ⚠️  GR backend (may have Windows issues)")
         global plotting_backend = "GR"
@@ -261,7 +261,9 @@ catch e
         exact_energy = classical_solver(test_H).eigenvalue
         println(" ✅ (test Hamiltonian)")
         global tests_passed += 1
-        global test_system = (hamiltonian=test_H, n_qubits=4, exact_energy=exact_energy, name="Test")
+        global test_system = (
+            hamiltonian=test_H, n_qubits=4, exact_energy=exact_energy, name="Test"
+        )
     catch e2
         println(" ❌ ($e2)")
         global test_system = nothing
@@ -274,13 +276,13 @@ global working_methods = 0
 try
     vqe = StandardVQE(4, 1)
     global working_methods += 1
-    
+
     try
-        vqe_sea = SEAVQE(4) 
+        vqe_sea = SEAVQE(4)
         global working_methods += 1
     catch
     end
-    
+
     if working_methods >= 1
         println(" ✅ ($working_methods methods working)")
         global tests_passed += 1
@@ -298,7 +300,7 @@ if test_system !== nothing && working_methods >= 1
         vqe = StandardVQE(test_system.n_qubits, 1)
         initial_params = random_initial_parameters(vqe.n_parameters)
         result = run_vqe(vqe, test_system.hamiltonian, initial_params, 10; verbose=false)
-        
+
         energy_error = abs(result.final_energy - test_system.exact_energy)
         println(" ✅ (error: $(round(energy_error, digits=6)))")
         global tests_passed += 1
@@ -313,7 +315,7 @@ end
 if working_methods >= 1
     print("  🧪 Testing analysis framework...")
     try
-        analyzer = MolecularVQEAnalyzer("H2", use_test_hamiltonian=true)
+        analyzer = MolecularVQEAnalyzer("H2"; use_test_hamiltonian=true)
         result = run_standard_vqe(analyzer; num_iters=5, verbose=false)
         println(" ✅")
         global tests_passed += 1
@@ -337,18 +339,18 @@ if yaoplots_working && plotting_backend != "None"
     try
         include("src/circuit_visualization.jl")
         using .CircuitVisualization
-        
+
         deps_ok = CircuitVisualization.check_dependencies()
         if deps_ok
             println("✅ Circuit visualization module loaded successfully")
             global circuit_viz_status = "Available"
-            
+
             # Quick test
             if test_system !== nothing
                 try
                     println("  🧪 Testing circuit visualization...")
                     # This is a minimal test that shouldn't fail
-                    ansatz = chain(4, put(1=>Ry(0.1)), put(2=>Ry(0.2)), cnot(1,2))
+                    ansatz = chain(4, put(1=>Ry(0.1)), put(2=>Ry(0.2)), cnot(1, 2))
                     println("  ✅ Circuit visualization ready")
                 catch e
                     println("  ⚠️  Circuit visualization test failed: $e")
@@ -383,26 +385,26 @@ println("-" ^ 40)
 if test_system !== nothing && working_methods >= 1
     try
         println("Running H₂ performance test...")
-        
+
         start_time = time()
         vqe = StandardVQE(test_system.n_qubits, 1)
         initial_params = random_initial_parameters(vqe.n_parameters)
         result = run_vqe(vqe, test_system.hamiltonian, initial_params, 25; verbose=false)
         execution_time = time() - start_time
-        
+
         energy_error = abs(result.final_energy - test_system.exact_energy)
-        
+
         println("✅ Performance test completed:")
         println("    📊 Time: $(round(execution_time, digits=2))s")
         println("    📊 Error: $(round(energy_error, digits=8))")
         println("    📊 Speed: $(round(25/execution_time, digits=1)) iterations/s")
-        
+
         if execution_time < 5.0
             println("    🚀 Excellent performance!")
         else
             println("    ✅ Good performance")
         end
-        
+
     catch e
         println("⚠️  Performance test failed: $e")
     end
@@ -464,21 +466,21 @@ println("```")
 # Troubleshooting section
 if health_score < 100
     println("\n🔧 TROUBLESHOOTING:")
-    
+
     if plotting_backend == "None"
         println("  • Plotting issues: Try reinstalling PlotlyJS")
         println("    julia --project=. -e 'using Pkg; Pkg.add(\"PlotlyJS\")'")
     end
-    
+
     if circuit_viz_status != "Available"
         println("  • Circuit visualization: Install YaoPlots manually")
         println("    julia --project=. -e 'using Pkg; Pkg.add(\"YaoPlots\")'")
     end
-    
+
     if working_methods < 2
         println("  • Limited VQE methods: Check quantum package versions")
     end
-    
+
     println("  • For detailed diagnostics, check the output above")
 end
 

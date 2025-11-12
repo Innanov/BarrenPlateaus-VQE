@@ -280,7 +280,6 @@ If you use this software in your research, please cite:
   title = {Investigating Different Barren Plateaus Mitigation Strategies in Variational Quantum Eigensolver},
   author = {Atallah, Mostafa and Innan, Nouhaila and Kashif, Muhammed and Shafique, Muhammed},
   year = {2025},
-  journal = {[To be added]},
-  note = {Preprint}
+  journal = {[To be added]}
 }
 ```

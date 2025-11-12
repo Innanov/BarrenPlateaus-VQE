@@ -26,7 +26,7 @@ Apply parameterized circuit to |0⟩ state.
 function apply_circuit(circuit, parameters::Vector{Float64}, n_qubits::Int)
     # Dispatch circuit with parameters
     dispatched_circuit = dispatch(circuit, parameters)
-    
+
     # Apply to |0⟩ state
     state = zero_state(n_qubits)
     return apply!(state, dispatched_circuit)
@@ -56,28 +56,30 @@ end
 
 Compute gradient using parameter shift rule (when applicable).
 """
-function parameter_shift_gradient(hamiltonian, circuit, parameters::Vector{Float64}, n_qubits::Int)
+function parameter_shift_gradient(
+    hamiltonian, circuit, parameters::Vector{Float64}, n_qubits::Int
+)
     n_params = length(parameters)
     gradient = zeros(n_params)
     shift = π/2
-    
+
     for i in 1:n_params
         params_plus = copy(parameters)
         params_minus = copy(parameters)
         params_plus[i] += shift
         params_minus[i] -= shift
-        
+
         try
             cost_plus = cost_function(hamiltonian, circuit, params_plus, n_qubits)
             cost_minus = cost_function(hamiltonian, circuit, params_minus, n_qubits)
-            
+
             gradient[i] = 0.5 * (cost_plus - cost_minus)
         catch e
             @warn "Parameter shift gradient failed at parameter $i: $e"
             gradient[i] = 0.0
         end
     end
-    
+
     return gradient
 end
 
@@ -112,10 +114,10 @@ function fidelity_with_ground_state(state::AbstractRegister, hamiltonian::Abstra
         n_qubits = nqubits(state)
         exact_energy = exact_ground_state_energy(hamiltonian, n_qubits)
         vqe_energy = expectation_value(state, hamiltonian)
-        
+
         energy_diff = abs(vqe_energy - exact_energy)
         energy_scale = abs(exact_energy) > 1e-6 ? abs(exact_energy) : 1.0
-        
+
         # Simple energy-based fidelity estimate
         return exp(-energy_diff / energy_scale)
     catch e
@@ -152,16 +154,16 @@ end
 
 Check if VQE optimization has converged.
 """
-function check_convergence(energy_history::Vector{Float64}; 
-                          tolerance::Float64=1e-6,
-                          window::Int=10)
+function check_convergence(
+    energy_history::Vector{Float64}; tolerance::Float64=1e-6, window::Int=10
+)
     if length(energy_history) < window
         return false
     end
-    
-    recent_energies = energy_history[end-window+1:end]
+
+    recent_energies = energy_history[(end - window + 1):end]
     energy_variance = var(recent_energies)
-    
+
     return energy_variance < tolerance^2
 end
 
