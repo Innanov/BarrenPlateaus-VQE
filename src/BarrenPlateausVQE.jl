@@ -3,15 +3,6 @@
 
 A high-performance Julia implementation for studying barren plateau phenomena 
 in Variational Quantum Eigensolver (VQE) algorithms using molecular Hamiltonians.
-
-This package replicates the functionality of the qubap Python library but with
-10-100x performance improvements using Julia and Yao.jl.
-
-## Key Features
-- Performance: 10-100x faster than Python/Qiskit implementations
-- Molecular Systems: H₂, LiH, BeH₂, H₂O, N₂, CO, NH₃, CH₄
-- VQE Methods: Standard, Local-Global, Adiabatic, SEA, Pretrained
-- Analysis: Gradient diagnostics, loss landscapes, scaling studies
 """
 module BarrenPlateausVQE
 
@@ -24,7 +15,7 @@ using YaoBlocks
 using YaoArrayRegister
 
 # ============================================================================
-# Core Data Structures (defined once here to avoid duplication)
+# Core Data Structures 
 # ============================================================================
 
 """
@@ -99,7 +90,7 @@ include("visualization.jl")
 include("circuit_visualization.jl")
 
 # ============================================================================
-# Missing Function Definitions (Compatibility Layer)
+# Utility Function Definitions
 # ============================================================================
 
 """
