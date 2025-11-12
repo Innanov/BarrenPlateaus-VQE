@@ -1,6 +1,6 @@
 name = "BarrenPlateausVQE"
 uuid = "12345678-1234-5678-9abc-123456789abc"
-authors = ["Mostafa Atallah", "Nouhaila Innan"]
+authors = ["Mostafa Atallah", "Nouhaila Innan", "Muhammed Kashif", "Muhammed Shafique"]
 version = "0.1.0"
 
 [deps]

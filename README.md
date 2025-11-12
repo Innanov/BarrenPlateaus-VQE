@@ -1,335 +1,286 @@
 # BarrenPlateausVQE.jl
 
-**High-Performance Julia Implementation for VQE Barren Plateau Analysis**
+**Julia Implementation for VQE Barren Plateau Analysis**
 
-A comprehensive Julia package for studying barren plateau phenomena in Variational Quantum Eigensolver (VQE) algorithms using molecular Hamiltonians. This package provides **10-100x performance improvements** over Python/Qiskit implementations while maintaining full compatibility with the research workflows.
+A Julia package for studying barren plateau phenomena in Variational Quantum Eigensolver (VQE) algorithms using molecular Hamiltonians. Built with Yao.jl quantum computing framework.
 
-## 🚀 Key Features
+> **Research Paper**: *"Investigating Different Barren Plateaus Mitigation Strategies in Variational Quantum Eigensolver"*
+> Mostafa Atallah, Nouhaila Innan, Muhammed Kashif, Muhammed Shafique
 
-- **High Performance**: 10-100x faster than Python/qubap implementations
-- **Complete VQE Suite**: 5 different mitigation techniques implemented
-- **Molecular Systems**: Support for H₂, LiH, BeH₂, H₂O, N₂, CO, NH₃, CH₄
-- **Comprehensive Analysis**: Gradient diagnostics, loss landscapes, scaling studies
-- **Publication Ready**: LaTeX tables, high-quality plots, export formats
-- **Easy to Use**: Simple API compatible with existing research workflows
+## Key Features
 
-## 📦 Installation
+- **5 VQE Methods**: Standard, Local-Global, Adiabatic, SEA, and Pretrained VQE with barren plateau mitigation
+- **10 Molecular Systems**: H₂, LiH, BeH₂, H₂O, N₂, CO, NH₃, CH₄, HF, BH
+- **Comprehensive Analysis**: Gradient diagnostics, loss landscapes, convergence tracking
+- **Visualization**: Energy plots, 3D landscapes, circuit diagrams, LaTeX tables
+- **Easy to Use**: Simple API with integrated analysis framework
 
-1. **Install Julia** (version 1.8 or later): [https://julialang.org/downloads/](https://julialang.org/downloads/)
+## Installation
 
-2. **Clone the repository**:
+**Prerequisites**: Julia 1.8+ ([Download](https://julialang.org/downloads/))
+
 ```bash
-git clone <repository-url>
-cd BarrenPlateausVQE.jl
+# Clone repository
+git clone https://github.com/Innanov/BarrenPlateaus-VQE.git
+cd BarrenPlateaus-VQE
+
+# Run automated setup
+julia setup.jl
 ```
 
-3. **Install dependencies**:
+**Manual installation**:
 ```julia
 using Pkg
 Pkg.activate(".")
 Pkg.instantiate()
 ```
 
-## 🎯 Quick Start
-
-### Basic Usage
+## Quick Start
 
 ```julia
-using BarrenPlateausVQE
+# Load package
+julia --project=.
+include("src/BarrenPlateausVQE.jl")
+using .BarrenPlateausVQE
 
-# Create analyzer for H₂ molecule
-analyzer = MolecularVQEAnalyzer("H2", geometry="equilibrium", basis="sto-3g", n_layers=2)
-
-# Run complete analysis with all 5 methods
+# Run analysis on H₂ molecule
+analyzer = MolecularVQEAnalyzer("H2", n_layers=2)
 results = run_complete_analysis(analyzer, num_iters=500)
 
-# Generate all plots
-generate_all_plots(analyzer, output_dir="./results/H2_analysis")
+# Generate visualizations
+create_comprehensive_visualization(analyzer, output_dir="./results/H2")
 ```
 
-### Single Method Example
+**Single method example**:
+```julia
+analyzer = MolecularVQEAnalyzer("H2", n_layers=2)
+result = run_standard_vqe(analyzer, num_iters=300)
+
+println("Final energy: $(result["method_result"]["vqe_result"].final_energy)")
+println("Exact energy: $(analyzer.exact_energy)")
+```
+
+**Using scripts**:
+```bash
+julia scripts/molecular_vqe_analysis.jl --molecule H2 --layers 2 --iterations 1000
+julia scripts/gradient_variance_scaling.jl --molecule LiH --max-qubits 12
+julia scripts/generate_circuit_plots.jl --molecule H2 --layers 2
+```
+
+## Supported Molecules
+
+| Molecule | Formula | Qubits | Electrons | Geometries |
+|----------|---------|--------|-----------|------------|
+| H₂ | H-H | 4 | 2 | equilibrium, stretched, compressed |
+| LiH | Li-H | 8 | 4 | equilibrium, stretched, compressed |
+| BeH₂ | Be-H₂ | 12 | 4 | equilibrium, stretched |
+| H₂O | H-O-H | 12 | 8 | equilibrium, stretched |
+| N₂ | N≡N | 16 | 10 | equilibrium, stretched |
+| CO | C≡O | 16 | 10 | equilibrium, stretched |
+| NH₃ | N-H₃ | 14 | 10 | equilibrium |
+| CH₄ | C-H₄ | 16 | 10 | equilibrium |
+| HF | H-F | 8 | 10 | equilibrium, stretched |
+| BH | B-H | 8 | 6 | equilibrium, stretched |
 
 ```julia
-# Run just Standard VQE
-vqe = StandardVQE(4, 2)  # 4 qubits, 2 layers
-hamiltonian = h2_hamiltonian("stretched")
-initial_params = random_initial_parameters(vqe.n_parameters)
-
-result = run_vqe(vqe, hamiltonian, initial_params, 1000)
-println("Final energy: $(result.final_energy)")
+# Create molecular systems
+h2_system = create_molecular_hamiltonian("H2")
+lih_stretched = create_molecular_hamiltonian("LiH", geometry="stretched")
+h2_custom = create_molecular_hamiltonian("H2", bond_length=1.2)
 ```
 
-### Molecular Systems
-
-```julia
-# Different molecules and geometries
-h2_system = create_molecular_hamiltonian("H2", geometry="stretched")
-lih_system = create_molecular_hamiltonian("LiH", geometry="compressed") 
-h2o_system = create_molecular_hamiltonian("H2O", active_space=(8, 6))
-
-# Run analysis on larger system
-analyzer = MolecularVQEAnalyzer("H2O", active_space=(8, 6), n_layers=3)
-results = run_complete_analysis(analyzer, num_iters=800)
-```
-
-## 🧬 Supported Molecular Systems
-
-| Molecule | Geometries | Default Qubits | Active Space | Complexity |
-|----------|------------|----------------|--------------|------------|
-| **H₂** | equilibrium, stretched, compressed, dissociation | 2 | Full | Low |
-| **LiH** | equilibrium, stretched, compressed | 4 | (2e, 4o) | Low |
-| **BeH₂** | equilibrium, stretched, asymmetric | 12 | (4e, 6o) | Medium |
-| **H₂O** | equilibrium, stretched, bent | 12 | (8e, 6o) | Medium |
-| **N₂** | equilibrium, stretched, dissociation | 16 | (6e, 8o) | High |
-| **CO** | equilibrium, stretched, dissociation | 16 | (6e, 8o) | High |
-| **NH₃** | equilibrium, planar | 12 | (8e, 6o) | Medium |
-| **CH₄** | equilibrium | 12 | (8e, 6o) | Medium |
-
-## ⚛️ VQE Methods Implemented
+## VQE Methods
 
 ### 1. Standard VQE
+Hardware-efficient ansatz with SPSA optimization.
+
 ```julia
-vqe = StandardVQE(n_qubits, n_layers)
-result = run_vqe(vqe, hamiltonian, initial_params, num_iters)
+analyzer = MolecularVQEAnalyzer("H2", n_layers=2)
+result = run_standard_vqe(analyzer, num_iters=300)
 ```
 
 ### 2. Local-Global VQE
+Two-stage optimization: local warmup → global refinement.
+
 ```julia
-vqe = LocalGlobalVQE(n_qubits, n_layers)
-results = run_vqe(vqe, local_hamiltonian, global_hamiltonian, 
-                  initial_params, max_iter, shift_iter)
+result = run_local_global_vqe(analyzer, num_iters=300, shift_iter=100)
 ```
 
 ### 3. Adiabatic VQE
+Gradual interpolation from simple to target Hamiltonian.
+
 ```julia
-vqe = AdiabaticVQE(n_qubits, n_layers)
-result = run_vqe(vqe, local_hamiltonian, global_hamiltonian,
-                 initial_params, num_iters)
+result = run_adiabatic_vqe(analyzer, num_iters=300)
 ```
 
 ### 4. State Efficient Ansatz (SEA) VQE
+Optimized ansatz with reduced parameter count.
+
 ```julia
-vqe = SEAVQE(n_qubits, depth=[1, 1, 1])
-result = run_vqe(vqe, hamiltonian, initial_params, num_iters)
+result = run_sea_vqe(analyzer, num_iters=300)
 ```
 
 ### 5. Pretrained VQE
+Transfer learning from simpler Hamiltonians.
+
 ```julia
-vqe = PretrainedVQE(n_qubits)
-results = run_vqe(vqe, hamiltonian, iters_vqe, iters_train)
+result = run_pretrained_vqe(analyzer, iters_vqe=300, iters_train=50)
 ```
 
-## 📊 Analysis and Visualization
+## Analysis & Visualization
 
-### Comprehensive Analysis
+**Complete analysis**:
 ```julia
-# Run all methods with detailed diagnostics
-analyzer = MolecularVQEAnalyzer("LiH", geometry="stretched", n_layers=2)
-results = run_complete_analysis(analyzer, num_iters=1000, verbose=true)
-
-# Access detailed results
-for (method, data) in results
-    println("$(method): Energy = $(data["method_result"]["vqe_result"].final_energy)")
-    println("  Gradient variance: $(data["bp_diagnostics"].gradient_variance)")
-    println("  Energy error: $(data["performance_metrics"]["final_energy_error"])")
-end
-```
-
-### Visualization
-```julia
-# Individual plots
-plot_energy_convergence(analyzer, save_path="energy_convergence.png")
-plot_gradient_diagnostics(analyzer, save_path="gradient_analysis.png")
-create_performance_table(analyzer, save_csv="results.csv", save_latex="table.tex")
-
-# Generate all plots at once
-generate_all_plots(analyzer, output_dir="./analysis_plots", formats=["png", "pdf"])
-
-# Quick summary plot
-quick_plot = quick_analysis_plot(analyzer)
-```
-
-### Export Results
-```julia
-# Save complete analysis
-save_results(analyzer, "./analysis_output")
-save_analysis_summary(analyzer, "./analysis_output")
-```
-
-## 🏗️ Package Structure
-
-```
-BarrenPlateausVQE.jl/
-├── Project.toml                    # Package configuration
-├── src/
-│   ├── BarrenPlateausVQE.jl        # Main module
-│   ├── hamiltonian_builder.jl      # Molecular Hamiltonian generation
-│   ├── molecular_analyzer.jl       # Core analysis framework
-│   ├── visualization.jl            # Plotting and tables
-│   └── methods/                    # VQE method implementations
-│       ├── standard_vqe.jl         # Standard VQE
-│       ├── local_global_vqe.jl     # Local-Global VQE
-│       ├── adiabatic_vqe.jl        # Adiabatic VQE
-│       ├── sea_vqe.jl              # State Efficient Ansatz VQE
-│       └── pretrained_vqe.jl       # Pretrained VQE
-└── README.md                       # This file
-```
-
-## 📈 Performance Comparison
-
-| Task | Python/qubap | Julia Implementation | Speedup |
-|------|---------------|---------------------|---------|
-| H₂ Standard VQE (1000 iter) | ~120s | ~8s | **15x** |
-| LiH Local-Global VQE | ~300s | ~18s | **17x** |
-| H₂O SEA VQE (active space) | ~450s | ~25s | **18x** |
-| Complete 5-method analysis | ~25 min | ~2.5 min | **10x** |
-| Gradient diagnostics | ~180s | ~12s | **15x** |
-
-*Benchmarks on Intel i7-10700K, 32GB RAM*
-
-## 🔧 Advanced Usage
-
-### Custom Hamiltonians
-```julia
-# Create custom Hamiltonian
-terms = [("ZZ", 0.5), ("XX", -0.3), ("ZI", 0.1)]
-H = create_pauli_hamiltonian(4, terms)
-
-# Create local version
-H_local = global2local(H, 4)
-
-# Use in analysis
-vqe = StandardVQE(4, 2)
-result = run_vqe(vqe, H, random_initial_parameters(vqe.n_parameters), 500)
-```
-
-### Batch Analysis
-```julia
-# Analyze multiple molecules
-molecules = ["H2", "LiH", "BeH2"]
-geometries = ["equilibrium", "stretched"]
-
-for mol in molecules
-    for geom in geometries
-        println("Analyzing $mol ($geom)...")
-        analyzer = MolecularVQEAnalyzer(mol, geometry=geom, n_layers=2)
-        results = run_complete_analysis(analyzer, num_iters=500)
-        
-        output_dir = "./results/$(mol)_$(geom)"
-        generate_all_plots(analyzer, output_dir=output_dir)
-        save_results(analyzer, output_dir)
-    end
-end
-```
-
-### Method Comparison
-```julia
-# Compare specific methods
-methods = ["standard", "local_global", "sea"]
-analyzer = MolecularVQEAnalyzer("H2O", active_space=(8, 6))
-results = run_complete_analysis(analyzer, methods=methods, num_iters=800)
-
-# Analyze results
-df = create_performance_table(analyzer)
-best_method = df[argmin(df.Energy_Error), :Method]
-println("Best method: $best_method")
-```
-
-### Parameter Optimization
-```julia
-# Test different layer counts
-layer_counts = [1, 2, 3, 4]
-best_layers = 1
-best_error = Inf
-
-for n_layers in layer_counts
-    analyzer = MolecularVQEAnalyzer("LiH", n_layers=n_layers)
-    result = run_standard_vqe(analyzer, num_iters=200)
-    error = result["method_result"]["vqe_result"].final_energy - analyzer.exact_energy
-    
-    if abs(error) < best_error
-        best_error = abs(error)
-        best_layers = n_layers
-    end
-end
-
-println("Optimal layers: $best_layers")
-```
-
-## 🧪 Testing and Validation
-
-### Verify Installation
-```julia
-using BarrenPlateausVQE
-
-# Quick test
-analyzer = MolecularVQEAnalyzer("H2", use_test_hamiltonian=true)
-result = run_standard_vqe(analyzer, num_iters=50)
-println("Test successful: $(result["method_result"]["vqe_result"].converged)")
-```
-
-### Reproduce Paper Results
-```julia
-# Run analysis matching the paper parameters
-analyzer = MolecularVQEAnalyzer("H2", geometry="stretched", basis="sto-3g", n_layers=2)
+analyzer = MolecularVQEAnalyzer("LiH", n_layers=2)
 results = run_complete_analysis(analyzer, num_iters=1000)
 
-# Generate paper-quality plots
-generate_all_plots(analyzer, output_dir="./paper_figures", formats=["pdf"])
+# Access results
+for (method, data) in results
+    vqe_result = data["method_result"]["vqe_result"]
+    println("$(method): Energy = $(vqe_result.final_energy)")
+end
 ```
 
-## 🔬 Research Applications
+**Visualizations**:
+```julia
+# Individual plots
+plot_all_methods_energy_convergence(analyzer, save_path="convergence.pdf")
+plot_all_methods_loss_landscape_3d(analyzer, save_path="landscape.pdf")
 
-This package is designed for researchers studying:
+# Performance tables
+create_performance_table_all_methods(analyzer, save_csv="performance.csv")
+create_latex_table_all_methods(analyzer, save_path="table.tex")
 
-- **Barren Plateau Phenomena**: Comprehensive gradient analysis and mitigation strategies
-- **VQE Algorithm Development**: Benchmarking new approaches against established methods
-- **Molecular Quantum Chemistry**: Ground state preparation for realistic molecular systems
-- **Quantum Algorithm Performance**: Scaling studies and optimization landscapes
-- **Variational Quantum Algorithms**: General framework extensible to other VQA problems
+# All visualizations
+create_comprehensive_visualization(analyzer, output_dir="./analysis")
+```
 
-## 📚 Citation
+**Circuit visualization**:
+```julia
+include("src/circuit_visualization.jl")
+using .CircuitVisualization
+
+files = visualize_all_ansatz_circuits(analyzer, output_dir="./circuits")
+analysis = analyze_circuit_architectures(analyzer)
+```
+
+## Package Structure
+
+```
+BarrenPlateaus-VQE/
+├── src/
+│   ├── BarrenPlateausVQE.jl        # Main module
+│   ├── hamiltonian_builder.jl      # Molecular Hamiltonians
+│   ├── quantum_utils.jl            # Quantum utilities
+│   ├── molecular_analyzer.jl       # Analysis framework
+│   ├── visualization.jl            # Plotting
+│   ├── circuit_visualization.jl    # Circuit plots
+│   └── methods/                    # VQE implementations
+│       ├── standard_vqe.jl
+│       ├── local_global_vqe.jl
+│       ├── adiabatic_vqe.jl
+│       ├── sea_vqe.jl
+│       └── pretrained_vqe.jl
+├── scripts/
+│   ├── molecular_vqe_analysis.jl
+│   ├── gradient_variance_scaling.jl
+│   └── generate_circuit_plots.jl
+└── test/
+    └── basic_tests.jl
+```
+
+## Advanced Usage
+
+**Custom Hamiltonians**:
+```julia
+terms = [("ZIII", 0.5), ("IZII", 0.5), ("ZZII", 0.2)]
+hamiltonian = create_pauli_hamiltonian(4, terms)
+
+vqe = StandardVQE(4, 2)
+initial_params = random_initial_parameters(vqe.n_parameters)
+result = run_vqe(vqe, hamiltonian, initial_params, 500)
+```
+
+**Batch analysis**:
+```julia
+for mol in ["H2", "LiH", "BeH2"], n_layers in [1, 2, 3]
+    analyzer = MolecularVQEAnalyzer(mol, n_layers=n_layers)
+    results = run_complete_analysis(analyzer, num_iters=500)
+
+    output_dir = "./results/$(mol)_layers$(n_layers)"
+    create_comprehensive_visualization(analyzer, output_dir=output_dir)
+end
+```
+
+**Loss landscape**:
+```julia
+analyzer = MolecularVQEAnalyzer("H2", n_layers=2)
+result = run_standard_vqe(analyzer, num_iters=200)
+
+param_i, param_j, landscape = compute_loss_landscape_2d(
+    analyzer.system.hamiltonian,
+    result["method_result"]["vqe_result"].final_parameters,
+    (1, 2),  # parameter indices
+    50,      # resolution
+    0.5,     # range
+    result["ansatz"]
+)
+```
+
+## Key Dependencies
+
+- **Yao.jl** (v0.8) - Quantum computing framework
+- **Optim.jl** - Optimization algorithms
+- **Plots.jl** / **PlotlyJS.jl** - Plotting
+- **DataFrames.jl** / **CSV.jl** - Data handling
+- **YaoPlots.jl** - Circuit visualization
+
+See [Project.toml](Project.toml) for complete list.
+
+## Testing
+
+```julia
+# Run tests
+julia --project=. test/basic_tests.jl
+
+# Quick validation
+include("src/BarrenPlateausVQE.jl")
+using .BarrenPlateausVQE
+
+analyzer = MolecularVQEAnalyzer("H2", use_test_hamiltonian=true)
+result = run_standard_vqe(analyzer, num_iters=50)
+```
+
+## Troubleshooting
+
+**Plotting (Windows)**:
+```julia
+using Pkg
+Pkg.add("PlotlyJS")
+using Plots; plotlyjs()
+```
+
+**Circuit visualization**:
+```julia
+Pkg.add("YaoPlots")
+```
+
+**Large molecules** (>12 qubits):
+```julia
+# Use lower resolution
+plot_all_methods_loss_landscape_3d(analyzer, resolution=20)
+```
+
+## Citation
 
 If you use this software in your research, please cite:
 
 ```bibtex
-@software{barren_plateaus_vqe_jl,
-  title = {BarrenPlateausVQE.jl: High-Performance Analysis of Barren Plateau Phenomena},
-  author = {[Your Name]},
-  year = {2024},
-  url = {[Repository URL]}
+@article{atallah2025barren,
+  title = {Investigating Different Barren Plateaus Mitigation Strategies in Variational Quantum Eigensolver},
+  author = {Atallah, Mostafa and Innan, Nouhaila and Kashif, Muhammed and Shafique, Muhammed},
+  year = {2025},
+  journal = {[To be added]},
+  note = {Preprint}
 }
 ```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please see the contributing guidelines for details on:
-
-- Code style and formatting
-- Adding new VQE methods
-- Implementing additional molecular systems
-- Performance optimizations
-- Documentation improvements
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🔗 Related Work
-
-- **Original qubap Python implementation**: [qubap repository]
-- **Barren plateau research papers**: 
-  - McClean et al., "Barren plateaus in quantum neural network training landscapes" (2018)
-  - Cerezo et al., "Cost function dependent barren plateaus in shallow parametrized quantum circuits" (2021)
-- **Yao.jl quantum computing framework**: [https://yaoquantum.org/](https://yaoquantum.org/)
-
-## 💬 Support
-
-- **Issues**: Report bugs and request features on GitHub Issues
-- **Discussions**: General questions on GitHub Discussions  
-- **Documentation**: Comprehensive docs available in the `docs/` folder
-- **Examples**: Additional examples in the `examples/` folder
-
----
-
-**Ready to accelerate your quantum algorithm research? Try BarrenPlateausVQE.jl today!** 🚀
