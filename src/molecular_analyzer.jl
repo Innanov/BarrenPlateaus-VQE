@@ -518,12 +518,12 @@ function run_complete_analysis(analyzer::MolecularVQEAnalyzer;
     
     if verbose
         println("🚀 Starting Complete VQE Barren Plateau Analysis")
-        println("=" * 60)
+        println("=" ^ 60)
         println("System: $(analyzer.molecular_system.name)")
         println("Qubits: $(analyzer.n_qubits)")
         println("Layers: $(analyzer.n_layers)")
         println("Iterations per method: $num_iters")
-        println("=" * 60)
+        println("=" ^ 60)
     end
     
     # Define available methods

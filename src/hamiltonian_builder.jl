@@ -332,11 +332,58 @@ end
 # ============================================================================
 
 """
-    compute_molecular_integrals(molecule::String, n_spatial_orbitals::Int, 
+    compute_molecular_integrals(molecule::String, n_spatial_orbitals::Int,
                                bond_length::Float64=1.0)
 
-Compute molecular integrals from quantum chemistry.
-In a full implementation, this would use PySCF or similar.
+Compute molecular integrals for quantum chemistry simulations using simplified analytical models.
+
+This function generates one-electron integrals (h1e), two-electron integrals (h2e), and nuclear
+repulsion energy for various molecules. The integrals are based on simplified STO-3G basis set
+approximations suitable for VQE simulations and barren plateau analysis.
+
+**Note**: This implementation uses analytical approximations. For production quantum chemistry
+calculations, use specialized packages like PySCF, Psi4, or OpenFermion.
+
+# Arguments
+- `molecule`: Molecule name (supported: "H2", "LiH", "BeH2", "H2O", "NH3", "N2", "CH4", "H4", "H6", "H8")
+- `n_spatial_orbitals`: Number of spatial orbitals (determines basis set size)
+- `bond_length`: Internuclear distance in Angstroms (default: 1.0). Affects integral values.
+
+# Returns
+- `h1e::Matrix{Float64}`: One-electron integrals (kinetic + nuclear attraction), size (n_spatial_orbitals, n_spatial_orbitals)
+- `h2e::Array{Float64,4}`: Two-electron integrals in chemist notation (ij|kl), size (n_spatial_orbitals)^4
+- `nuclear_repulsion::Float64`: Nuclear-nuclear repulsion energy
+
+# Integral Details
+## One-electron integrals (h1e)
+- Includes kinetic energy and electron-nuclear attraction
+- h1e[i,j] represents ⟨ϕᵢ|T + Vₙₑ|ϕⱼ⟩
+- Bond length dependent for realistic molecules
+
+## Two-electron integrals (h2e)
+- Chemist notation: (ij|kl) = ⟨ϕᵢϕⱼ|1/r₁₂|ϕₖϕₗ⟩
+- h2e[i,j,k,l] represents electron-electron repulsion
+- Includes Coulomb (same spatial orbitals) and exchange (different orbitals) terms
+
+## Nuclear repulsion
+- Classical Coulombic repulsion between nuclei
+- Depends on nuclear charges and bond lengths
+
+# Examples
+```julia
+# H2 molecule with 2 spatial orbitals at equilibrium bond length
+h1e, h2e, nuc_rep = compute_molecular_integrals("H2", 2, 0.735)
+
+# LiH molecule with 4 spatial orbitals
+h1e, h2e, nuc_rep = compute_molecular_integrals("LiH", 4, 1.5)
+
+# Generic molecule (uses default integrals)
+h1e, h2e, nuc_rep = compute_molecular_integrals("CustomMolecule", 6)
+```
+
+# See Also
+- [`jordan_wigner_transform()`](@ref): Convert integrals to qubit Hamiltonian
+- [`create_pauli_hamiltonian()`](@ref): Build Hamiltonian from Pauli terms
 """
 function compute_molecular_integrals(molecule::String, n_spatial_orbitals::Int, 
                                    bond_length::Float64=1.0)

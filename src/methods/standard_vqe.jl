@@ -15,13 +15,13 @@ using Statistics
 
 """
     efficient_su2_ansatz(n_qubits::Int, n_layers::Int=1; 
-                        rotation_gates::Vector{Symbol}=[:Ry, :Rz],
+                        rotation_gates::Vector{Symbol}=[:Rx, :Ry],
                         entanglement::String="circular")
 
 Create EfficientSU2 ansatz similar to Qiskit's implementation.
 """
 function efficient_su2_ansatz(n_qubits::Int, n_layers::Int=1; 
-                             rotation_gates::Vector{Symbol}=[:Ry, :Rz],
+                             rotation_gates::Vector{Symbol}=[:Rx, :Ry],
                              entanglement::String="circular")
     
     circuit_blocks = AbstractBlock[]
@@ -199,7 +199,7 @@ struct StandardVQE
     n_qubits::Int
     
     function StandardVQE(n_qubits::Int, n_layers::Int=1; 
-                        rotation_gates::Vector{Symbol}=[:Ry, :Rz],
+                        rotation_gates::Vector{Symbol}=[:Rx, :Ry],
                         entanglement::String="circular")
         ansatz, n_params = efficient_su2_ansatz(n_qubits, n_layers; 
                                                rotation_gates=rotation_gates,

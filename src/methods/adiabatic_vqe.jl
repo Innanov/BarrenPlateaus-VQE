@@ -26,7 +26,7 @@ struct AdiabaticVQE
     adiabatic_steps::Int
     
     function AdiabaticVQE(n_qubits::Int, n_layers::Int=1; 
-                         rotation_gates::Vector{Symbol}=[:Ry, :Rz],
+                         rotation_gates::Vector{Symbol}=[:Rx, :Ry],
                          entanglement::String="circular",
                          adiabatic_steps::Int=10)
         ansatz, n_params = efficient_su2_ansatz(n_qubits, n_layers; 

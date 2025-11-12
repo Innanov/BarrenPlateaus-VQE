@@ -101,7 +101,26 @@ end
 """
     compute_trajectory_bounds(parameter_history::Vector{Vector{Float64}}, param_indices::Tuple{Int,Int})
 
-Compute appropriate parameter range to capture the full optimization trajectory.
+Compute appropriate parameter range to capture the full optimization trajectory for loss landscape plotting.
+
+This function analyzes the optimization trajectory in 2D parameter space and determines the bounds
+needed to visualize the entire path. It adds a 20% margin beyond the trajectory bounds to ensure
+the plot includes context around the optimization path.
+
+# Arguments
+- `parameter_history`: Vector of parameter vectors recorded during VQE optimization
+- `param_indices`: Tuple (i, j) specifying which two parameters to analyze
+
+# Returns
+- `Float64`: The range value to use for plotting. Returns 0.5 as default if trajectory is empty.
+  For non-empty trajectories, returns the maximum of the ranges for both parameters with 20% margin added.
+
+# Example
+```julia
+# Compute bounds for parameters 1 and 2
+range = compute_trajectory_bounds(vqe_result.parameter_history, (1, 2))
+# Use range to create loss landscape plot centered on final parameters
+```
 """
 function compute_trajectory_bounds(parameter_history::Vector{Vector{Float64}}, param_indices::Tuple{Int,Int})
     if isempty(parameter_history)
@@ -182,7 +201,33 @@ end
 """
     create_text_placeholder(message::String)
 
-Create a text-based placeholder when plotting is not available.
+Create a text-based placeholder when plotting is not available or plot creation fails.
+
+This function returns a dictionary representing a placeholder that can be displayed
+when the plotting backend (Plots.jl or Makie.jl) is unavailable or when plot generation
+encounters an error. The placeholder provides user-friendly feedback about why the plot
+couldn't be created.
+
+# Arguments
+- `message`: String describing why the plot is unavailable (e.g., "Plotting backend not available")
+
+# Returns
+- `Dict{String, String}`: Dictionary with keys:
+  - `"type"`: Always "text_placeholder"
+  - `"message"`: The input message
+  - `"display_text"`: Formatted message with emoji prefix "📊 {message}"
+
+# Example
+```julia
+# When plotting fails
+if !plotting_available()
+    return create_text_placeholder("Plots.jl not installed")
+end
+```
+
+# See Also
+- [`check_plotting_available()`](@ref): Check if plotting backend is available
+- [`safe_plot()`](@ref): Wrapper for safe plot creation with fallback
 """
 function create_text_placeholder(message::String)
     return Dict(
