@@ -169,3 +169,15 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+
+# data files
+data/
+plots/
+logs/
+configs/
+
+Manifest.toml
+example_plots
+gradient_scaling_plots
+circuit_plots

@@ -1,6 +1,0 @@
-Method,Energy Error,Fidelity,Grad Variance,Status
-Standard VQE,1.00e+00,0.000,1.34e-08,Success
-Local-Global VQE,1.04e-03,1.000,7.44e-05,Success
-Adiabatic VQE,8.82e-02,0.992,5.03e-03,Success
-VQE with SEA,3.05e-03,1.000,1.19e-04,Success
-Pretrained VQE,5.40e-01,0.709,4.97e-03,Success
