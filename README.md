@@ -10,14 +10,14 @@ A Julia package for studying barren plateau phenomena in Variational Quantum Eig
 ## Key Features
 
 - **5 VQE Methods**: Standard, Local-Global, Adiabatic, SEA, and Pretrained VQE with barren plateau mitigation
-- **10 Molecular Systems**: H₂, LiH, BeH₂, H₂O, N₂, CO, NH₃, CH₄, HF, BH
+- **35 Molecular Systems**: Full PennyLane qchem collection (H₂ → C₂H₆), fetched via Python data pipeline
 - **Comprehensive Analysis**: Gradient diagnostics, loss landscapes, convergence tracking
 - **Visualization**: Energy plots, 3D landscapes, circuit diagrams, LaTeX tables
 - **Easy to Use**: Simple API with integrated analysis framework
 
 ## Installation
 
-**Prerequisites**: Julia 1.8+ ([Download](https://julialang.org/downloads/))
+**Prerequisites**: Julia 1.8+ ([Download](https://julialang.org/downloads/)), Python 3.10
 
 ```bash
 # Clone repository
@@ -34,6 +34,40 @@ using Pkg
 Pkg.activate(".")
 Pkg.instantiate()
 ```
+
+### Python data pipeline (PennyLane datasets)
+
+Hamiltonians are pre-fetched from [PennyLane Datasets](https://pennylane.ai/datasets/collection/qchem)
+using a Python 3.10 virtual environment. **Python 3.10 is required** — numpy is not stable on
+Python 3.11+ on Windows with the current PennyLane release.
+
+```bash
+# Create and activate the venv (one-time setup)
+py -3.10 -m venv .venv310
+
+# Windows (PowerShell)
+.venv310\Scripts\Activate.ps1
+# macOS / Linux
+source .venv310/bin/activate
+
+# Install dependencies
+pip install pennylane aiohttp fsspec h5py
+
+# Fetch all Hamiltonians (saves to data/hamiltonians/)
+python scripts/fetch_hamiltonians.py
+
+# Fetch specific molecules only
+python scripts/fetch_hamiltonians.py --molecules H2 LiH N2
+
+# Fetch every available bond length for a molecule (full PES scan)
+python scripts/fetch_hamiltonians.py --molecules H2 --all-bondlengths
+
+# List all available molecules and bond length ranges
+python scripts/fetch_hamiltonians.py --list
+```
+
+> Bond lengths are discovered dynamically from the PennyLane dataset registry at fetch time —
+> no hardcoded values.
 
 ## Quick Start
 
@@ -188,6 +222,7 @@ BarrenPlateaus-VQE/
 │       └── circuit_visualization.jl # Circuit diagrams
 │
 ├── scripts/
+│   ├── fetch_hamiltonians.py        # Python: pre-fetch Hamiltonians from PennyLane
 │   ├── molecular_vqe_analysis.jl
 │   ├── gradient_variance_scaling.jl
 │   └── generate_circuit_plots.jl

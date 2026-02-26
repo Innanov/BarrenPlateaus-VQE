@@ -130,6 +130,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venv310/
 env/
 venv/
 ENV/
@@ -171,8 +172,12 @@ cython_debug/
 .pypirc
 
 
+# Claude Code
+.claude/
+
 # data files
 data/
+datasets/
 plots/
 logs/
 configs/

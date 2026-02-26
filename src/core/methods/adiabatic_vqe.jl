@@ -232,30 +232,12 @@ function run_vqe_with_cost_function(
     current_params = copy(initial_guess)
     converged = false
 
-    # Simple SPSA optimization
-    learning_rate = 0.1
-    perturbation = 0.1
+    spsa_opt = SPSAOptimizer(; maxiter=num_iters)
 
     for iter in 1:num_iters
         current_energy = cost_function(current_params)
         result_callback(iter, current_params, current_energy)
-
-        # SPSA step
-        delta = 2 * (rand(length(current_params)) .> 0.5) .- 1
-
-        try
-            energy_plus = cost_function(current_params + perturbation * delta)
-            energy_minus = cost_function(current_params - perturbation * delta)
-
-            gradient_estimate = (energy_plus - energy_minus) ./ (2 * perturbation * delta)
-            current_params = current_params - learning_rate * gradient_estimate
-
-            # Simple learning rate decay
-            learning_rate *= 0.999
-            perturbation *= 0.9999
-        catch e
-            @warn "SPSA step failed at iteration $iter: $e"
-        end
+        current_params, _ = spsa_step!(spsa_opt, cost_function, current_params)
     end
 
     converged = true

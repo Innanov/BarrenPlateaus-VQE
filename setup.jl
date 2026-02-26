@@ -42,10 +42,71 @@ else
 end
 
 # ============================================================================
-# Step 2: Environment Setup
+# Step 2: Python Environment Setup (PennyLane data pipeline)
 # ============================================================================
 
-println("\n📋 Step 2: Environment Setup")
+println("\n📋 Step 2: Python Environment Setup")
+println("-" ^ 40)
+
+python_ok = false
+
+# Find Python 3.10 via py launcher (Windows) or python3.10 (Unix)
+python_candidates = ["py -3.10", "python3.10", "python3", "python"]
+
+global python_cmd = nothing
+for candidate in python_candidates
+    try
+        version_out = read(`$(split(candidate)...) --version`, String)
+        if occursin("3.10", version_out) || occursin("3.9", version_out) || occursin("3.11", version_out)
+            global python_cmd = candidate
+            println("  ✅ Found Python: $candidate ($( strip(version_out)))")
+            break
+        end
+    catch
+    end
+end
+
+if python_cmd === nothing
+    println("  ⚠️  Python 3.10 not found — skipping Python setup")
+    println("      Install Python 3.10 and run: pip install -r requirements.txt")
+else
+    # Check if venv exists, create if not
+    venv_path = joinpath(dirname(@__FILE__), ".venv310")
+    venv_pip = Sys.iswindows() ? joinpath(venv_path, "Scripts", "pip.exe") :
+                                  joinpath(venv_path, "bin", "pip")
+
+    if !isdir(venv_path)
+        println("  Creating Python 3.10 virtual environment (.venv310) ...")
+        try
+            run(`$(split(python_cmd)...) -m venv $venv_path`)
+            println("  ✅ Virtual environment created")
+        catch e
+            println("  ⚠️  Could not create venv: $e")
+        end
+    else
+        println("  ✅ Virtual environment already exists (.venv310)")
+    end
+
+    # Install requirements
+    if isfile(venv_pip)
+        println("  Installing Python dependencies from requirements.txt ...")
+        try
+            run(`$venv_pip install -r requirements.txt -q`)
+            println("  ✅ Python dependencies installed (pennylane, aiohttp, fsspec, h5py)")
+            global python_ok = true
+        catch e
+            println("  ⚠️  pip install failed: $e")
+        end
+    else
+        println("  ⚠️  pip not found in venv — Python setup incomplete")
+    end
+end
+
+# ============================================================================
+# Step 3: Julia Environment Setup
+# ============================================================================
+
+println("\n📋 Step 3: Environment Setup")
 println("-" ^ 40)
 
 try
@@ -63,7 +124,7 @@ end
 # Step 3: Core Dependencies Installation
 # ============================================================================
 
-println("\n📋 Step 3: Core Dependencies Installation")
+println("\n📋 Step 4: Core Dependencies Installation")
 println("-" ^ 40)
 
 println("Installing core dependencies from Project.toml...")
@@ -99,7 +160,7 @@ end
 # Step 4: Optional Dependencies with Windows Compatibility
 # ============================================================================
 
-println("\n📋 Step 4: Optional Dependencies (Windows-compatible)")
+println("\n📋 Step 5: Optional Dependencies (Windows-compatible)")
 println("-" ^ 40)
 
 # Define optional packages with Windows compatibility in mind
@@ -142,7 +203,7 @@ end
 # Step 5: Package Import Testing
 # ============================================================================
 
-println("\n📋 Step 5: Package Import Testing")
+println("\n📋 Step 6: Package Import Testing")
 println("-" ^ 40)
 
 # Test core packages
@@ -228,7 +289,7 @@ end
 # Step 6: BarrenPlateausVQE Package Testing
 # ============================================================================
 
-println("\n📋 Step 6: BarrenPlateausVQE Package Testing")
+println("\n📋 Step 7: BarrenPlateausVQE Package Testing")
 println("-" ^ 40)
 
 println("Loading main package...")
@@ -330,7 +391,7 @@ end
 # Step 7: Circuit Visualization Setup
 # ============================================================================
 
-println("\n📋 Step 7: Circuit Visualization Setup")
+println("\n📋 Step 8: Circuit Visualization Setup")
 println("-" ^ 40)
 
 global circuit_viz_status = "Not Available"
@@ -379,7 +440,7 @@ end
 # Step 8: Performance Test
 # ============================================================================
 
-println("\n📋 Step 8: Quick Performance Test")
+println("\n📋 Step 9: Quick Performance Test")
 println("-" ^ 40)
 
 if test_system !== nothing && working_methods >= 1
@@ -421,6 +482,7 @@ println("🎉 SETUP COMPLETE!")
 println("=" ^ 60)
 
 println("\n📊 FINAL STATUS:")
+println("    🐍 Python data pipeline: $(python_ok ? "Ready (.venv310)" : "Not configured")")
 println("    ✅ Core packages: Working")
 println("    ✅ VQE functionality: $working_methods methods available")
 println("    ✅ Analysis framework: $(tests_passed >= 4 ? "Working" : "Limited")")

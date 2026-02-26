@@ -75,6 +75,7 @@ end
 # ============================================================================
 
 # Core modules
+include("core/dataset_loader.jl")
 include("core/hamiltonian_builder.jl")
 include("core/ansatz_library.jl")
 
@@ -260,9 +261,6 @@ function __init__()
     println("🚀 BarrenPlateausVQE.jl initialized")
     println("   High-performance VQE barren plateau analysis")
     println("   Julia $(VERSION) with Yao.jl quantum computing backend")
-
-    # Set random seed for reproducibility
-    Random.seed!(42)
 end
 
 end # module BarrenPlateausVQE

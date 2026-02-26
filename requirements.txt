@@ -1,0 +1,4 @@
+pennylane
+aiohttp
+fsspec
+h5py

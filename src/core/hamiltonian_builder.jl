@@ -1016,6 +1016,41 @@ function create_molecular_hamiltonian(
 )
     molecule_lower = lowercase(molecule)
 
+    # ------------------------------------------------------------------
+    # Fast path: load from pre-fetched JSON cache (PennyLane Datasets)
+    # Bypasses compute_molecular_integrals + jordan_wigner_transform + eigvals
+    # ------------------------------------------------------------------
+    if dataset_available(molecule, geometry)
+        cached = load_cached_hamiltonian(molecule, geometry)
+        hamiltonian = create_pauli_hamiltonian(cached.n_qubits, cached.pauli_terms)
+        exact_energy = cached.fci_energy
+        nuclear_repulsion = 0.0  # not stored separately; absorbed into Pauli terms
+
+        mol_props = get(
+            MOLECULAR_PROPERTIES,
+            molecule,
+            (charge=0, spin=0, electrons=cached.n_qubits),
+        )
+
+        return Main.BarrenPlateausVQE.MolecularSystem(
+            cached.molecule,
+            cached.geometry,
+            cached.basis,
+            mol_props.charge,
+            mol_props.spin,
+            mol_props.electrons,
+            cached.n_qubits,
+            "Cached geometry: $(cached.geometry) (bond=$(cached.bondlength) Å)",
+            hamiltonian,
+            exact_energy,
+            nuclear_repulsion,
+        )
+    end
+
+    # ------------------------------------------------------------------
+    # Slow path: analytical approximation + Jordan-Wigner + diagonalization
+    # ------------------------------------------------------------------
+
     # Determine system size
     system_info = determine_molecular_system_size(molecule, basis, active_space)
     n_spatial_orbitals = system_info["n_spatial_orbitals"]

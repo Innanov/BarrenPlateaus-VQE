@@ -36,7 +36,7 @@ mutable struct MolecularVQEAnalyzer
     function MolecularVQEAnalyzer(
         molecule::String;
         geometry::String="equilibrium",
-        basis::String="sto-3g",
+        basis::String="STO-3G",
         active_space::Union{Nothing,Tuple{Int,Int}}=nothing,
         n_layers::Int=1,
         use_test_hamiltonian::Bool=false,
@@ -135,7 +135,7 @@ function run_standard_vqe(
 
     catch e
         @warn "Standard VQE failed: $e"
-        return create_fallback_result("Standard VQE", string(e))
+        return create_fallback_result("Standard VQE", string(e), analyzer.n_qubits)
     end
 end
 
@@ -199,7 +199,7 @@ function run_local_global_vqe(
 
     catch e
         @warn "Local-Global VQE failed: $e"
-        return create_fallback_result("Local-Global VQE", string(e))
+        return create_fallback_result("Local-Global VQE", string(e), analyzer.n_qubits)
     end
 end
 
@@ -243,7 +243,7 @@ function run_adiabatic_vqe(
 
     catch e
         @warn "Adiabatic VQE failed: $e"
-        return create_fallback_result("Adiabatic VQE", string(e))
+        return create_fallback_result("Adiabatic VQE", string(e), analyzer.n_qubits)
     end
 end
 
@@ -281,7 +281,7 @@ function run_sea_vqe(analyzer::MolecularVQEAnalyzer; num_iters::Int=300, verbose
 
     catch e
         @warn "SEA VQE failed: $e"
-        return create_fallback_result("SEA VQE", string(e))
+        return create_fallback_result("SEA VQE", string(e), analyzer.n_qubits)
     end
 end
 
@@ -344,16 +344,16 @@ function run_pretrained_vqe(
 
     catch e
         @warn "Pretrained VQE failed: $e"
-        return create_fallback_result("Pretrained VQE", string(e))
+        return create_fallback_result("Pretrained VQE", string(e), analyzer.n_qubits)
     end
 end
 
 """
-    create_fallback_result(method_name::String, error_msg::String)
+    create_fallback_result(method_name::String, error_msg::String, n_qubits::Int=4)
 
 Create fallback result when a method fails.
 """
-function create_fallback_result(method_name::String, error_msg::String)
+function create_fallback_result(method_name::String, error_msg::String, n_qubits::Int=4)
     # Create minimal fallback result
     fallback_result = VQEResult(
         method_name,
@@ -366,8 +366,8 @@ function create_fallback_result(method_name::String, error_msg::String)
         0.0,
     )
 
-    # Create dummy ansatz for compatibility
-    dummy_ansatz, dummy_params = efficient_su2_ansatz(4, 1)
+    # Create dummy ansatz for compatibility using actual qubit count
+    dummy_ansatz, dummy_params = efficient_su2_ansatz(n_qubits, 1)
 
     return Dict(
         "method" => method_name,
@@ -375,7 +375,7 @@ function create_fallback_result(method_name::String, error_msg::String)
         "error" => error_msg,
         "fallback" => true,
         "ansatz_info" =>
-            Dict("n_parameters" => dummy_params, "n_qubits" => 4, "ansatz" => dummy_ansatz),
+            Dict("n_parameters" => dummy_params, "n_qubits" => n_qubits, "ansatz" => dummy_ansatz),
     )
 end
 
@@ -647,7 +647,7 @@ function run_complete_analysis(
             end
 
             # Store fallback result
-            fallback = create_fallback_result(titlecase(method) * " VQE", string(e))
+            fallback = create_fallback_result(titlecase(method) * " VQE", string(e), analyzer.n_qubits)
             bp_diagnostics = compute_bp_diagnostics(analyzer, fallback)
             performance_metrics = compute_performance_metrics(analyzer, fallback)
 
