@@ -102,7 +102,7 @@ function parse_commandline()
         "--basis", "-b"
         help = "Basis set for molecular calculations"
         arg_type = String
-        default = "sto-3g"
+        default = "STO-3G"
 
         "--min-layers"
         help = "Minimum number of ansatz layers"
@@ -132,7 +132,7 @@ function parse_commandline()
         "--output-dir", "-o"
         help = "Base output directory for results"
         arg_type = String
-        default = "plots"
+        default = "results"
 
         "--epsilon"
         help = "Finite difference epsilon for gradient computation"
@@ -153,10 +153,10 @@ function parse_commandline()
 end
 
 function setup_output_directory(base_dir::String, molecule::String, max_layers::Int)
-    """Create timestamped output directory."""
+    """Create structured output directory: <base>/<molecule>/gradient_scaling/<timestamp>/"""
     timestamp = Dates.format(now(), "yyyy-mm-dd_HH-MM-SS")
-    run_id = "$(timestamp)_gradient_scaling_$(molecule)_$(max_layers)layers"
-    output_dir = joinpath(base_dir, run_id)
+    run_id = "$(timestamp)_$(max_layers)layers"
+    output_dir = joinpath(base_dir, molecule, "gradient_scaling", run_id)
 
     mkpath(output_dir)
     return output_dir, run_id
@@ -332,7 +332,7 @@ function compute_gradient_variance_statistics(
 end
 
 function run_layer_scaling_analysis(
-    molecule_name, method_name, min_layers, max_layers, n_samples, epsilon, verbose=false
+    molecule_name, method_name, min_layers, max_layers, n_samples, epsilon, basis, geometry, verbose=false
 )
     """Run gradient variance analysis across different layer depths for a single method."""
 
@@ -342,7 +342,7 @@ function run_layer_scaling_analysis(
     end
 
     molecular_system = create_molecular_hamiltonian(
-        molecule_name; geometry="equilibrium", basis="sto-3g"
+        molecule_name; geometry=geometry, basis=basis
     )
     n_qubits = molecular_system.n_qubits
     hamiltonian = molecular_system.hamiltonian
@@ -410,16 +410,7 @@ function run_layer_scaling_analysis(
                 println("    Circuit has $n_params parameters")
             end
 
-            grad_stats = (
-                mean_var=1e-3 * exp(-0.5 * n_layers),
-                std_var=1e-4 * exp(-0.5 * n_layers),
-                mean_norm=1e-2 * exp(-0.3 * n_layers),
-                std_norm=1e-3 * exp(-0.3 * n_layers),
-                raw_vars=[1e-3 * exp(-0.5 * n_layers)],
-                raw_norms=[1e-2 * exp(-0.3 * n_layers)],
-            )
-
-            try
+            grad_stats = try
                 computed_stats = compute_gradient_variance_statistics(
                     hamiltonian, ansatz, n_params, n_qubits, n_samples, epsilon, verbose
                 )
@@ -428,17 +419,14 @@ function run_layer_scaling_analysis(
                     !isnan(computed_stats.mean_norm) &&
                     !isempty(computed_stats.raw_vars) &&
                     !isempty(computed_stats.raw_norms)
-                    grad_stats = computed_stats
+                    computed_stats
                 else
-                    if verbose
-                        @warn "No valid gradients computed for $method_name at $n_layers layers, using fallback values"
-                    end
+                    @warn "No valid gradients for $method_name at $n_layers layers — skipping"
+                    continue
                 end
-
             catch e
-                if verbose
-                    @warn "Gradient statistics computation failed for $method_name: $e"
-                end
+                @warn "Gradient statistics failed for $method_name at $n_layers layers: $e — skipping"
+                continue
             end
 
             push!(layer_counts, n_layers)
@@ -827,13 +815,20 @@ function main()
     methods_to_test = parse_methods(args["methods"])
     println("🔬 Methods to analyze: $(join(methods_to_test, ", "))")
 
-    # Save run parameters
+    # Save run parameters with full molecule info
     molecular_system = create_molecular_hamiltonian(
         args["molecule"]; geometry=args["geometry"], basis=args["basis"]
     )
     system_info = Dict(
-        "n_qubits" => molecular_system.n_qubits,
-        "exact_energy" => molecular_system.exact_energy,
+        "n_qubits"      => molecular_system.n_qubits,
+        "n_orbitals"    => molecular_system.n_orbitals,
+        "n_electrons"   => molecular_system.n_electrons,
+        "exact_energy"  => molecular_system.exact_energy,
+        "hf_energy"     => molecular_system.hf_energy,
+        "basis"         => molecular_system.basis_set,
+        "geometry"      => molecular_system.geometry_type,
+        "bondlength"    => molecular_system.bond_length,
+        "analysis_type" => "gradient_scaling",
     )
     save_run_parameters(output_dir, args, system_info)
 
@@ -863,6 +858,8 @@ function main()
                 args["max-layers"],
                 args["samples"],
                 args["epsilon"],
+                args["basis"],
+                args["geometry"],
                 args["verbose"],
             )
 

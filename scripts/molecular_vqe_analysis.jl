@@ -89,7 +89,7 @@ function parse_commandline()
         "--basis", "-b"
         help = "Basis set for molecular calculations"
         arg_type = String
-        default = "sto-3g"
+        default = "STO-3G"
 
         "--layers", "-l"
         help = "Number of ansatz layers"
@@ -107,9 +107,9 @@ function parse_commandline()
         default = "all"
 
         "--output-dir", "-o"
-        help = "Base output directory for results and plots"
+        help = "Base output directory for results"
         arg_type = String
-        default = "plots"
+        default = "results"
 
         "--landscape-resolution"
         help = "Resolution for loss landscape plots"
@@ -130,10 +130,10 @@ function parse_commandline()
 end
 
 function setup_output_directory(base_dir::String, molecule::String, layers::Int)
-    """Create timestamped output directory with run information."""
+    """Create structured output directory: <base>/<molecule>/vqe_analysis/<timestamp>/"""
     timestamp = Dates.format(now(), "yyyy-mm-dd_HH-MM-SS")
-    run_id = "$(timestamp)_$(molecule)_$(layers)layers"
-    output_dir = joinpath(base_dir, run_id)
+    run_id = "$(timestamp)_$(layers)layers"
+    output_dir = joinpath(base_dir, molecule, "vqe_analysis", run_id)
 
     mkpath(output_dir)
     return output_dir, run_id
@@ -291,10 +291,17 @@ function main()
         println("   Layers: $(analyzer.n_layers)")
         println("   Exact energy: $(analyzer.exact_energy)")
 
-        # Save run parameters
+        # Save run parameters with full molecule info
         system_info = Dict(
-            "n_qubits" => molecular_system.n_qubits,
-            "exact_energy" => molecular_system.exact_energy,
+            "n_qubits"      => molecular_system.n_qubits,
+            "n_orbitals"    => molecular_system.n_orbitals,
+            "n_electrons"   => molecular_system.n_electrons,
+            "exact_energy"  => molecular_system.exact_energy,
+            "hf_energy"     => molecular_system.hf_energy,
+            "basis"         => molecular_system.basis_set,
+            "geometry"      => molecular_system.geometry_type,
+            "bondlength"    => molecular_system.bond_length,
+            "analysis_type" => "vqe_analysis",
         )
         save_run_parameters(output_dir, args, system_info)
 
