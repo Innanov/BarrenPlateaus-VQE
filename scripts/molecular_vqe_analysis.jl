@@ -294,13 +294,11 @@ function main()
         # Save run parameters with full molecule info
         system_info = Dict(
             "n_qubits"      => molecular_system.n_qubits,
-            "n_orbitals"    => molecular_system.n_orbitals,
             "n_electrons"   => molecular_system.n_electrons,
             "exact_energy"  => molecular_system.exact_energy,
-            "hf_energy"     => molecular_system.hf_energy,
             "basis"         => molecular_system.basis_set,
             "geometry"      => molecular_system.geometry_type,
-            "bondlength"    => molecular_system.bond_length,
+            "nuclear_repulsion_energy" => molecular_system.nuclear_repulsion_energy,
             "analysis_type" => "vqe_analysis",
         )
         save_run_parameters(output_dir, args, system_info)

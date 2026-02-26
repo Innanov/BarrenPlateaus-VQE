@@ -699,7 +699,7 @@ function generate_summary_table(analyzer::MolecularVQEAnalyzer)
         perf_met = data["performance_metrics"]
         exec_time = data["execution_time"]
 
-        row = Printf.sprintf(
+        row = @sprintf(
             "%-20s %-12.2e %-12.2e %-15.2e %-10.3f %-10.1f",
             method_name,
             bp_diag.gradient_variance,
