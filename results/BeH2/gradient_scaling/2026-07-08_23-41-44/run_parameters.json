@@ -1,0 +1,15 @@
+{
+  "molecules": [
+    "BeH2"
+  ],
+  "geometry": "equilibrium",
+  "ansatz": "efficient_su2",
+  "max_layers": 50,
+  "samples": 100,
+  "seed": 0,
+  "device": "lightning.qubit",
+  "_provenance": {
+    "git_commit": "31edf2e",
+    "data_dir": "F:\\QML-Barren Plateaus\\code\\BarrenPlateaus-VQE\\data"
+  }
+}
