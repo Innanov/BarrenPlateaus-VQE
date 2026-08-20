@@ -1,4 +1,13 @@
-pennylane
+pennylane>=0.42
+numpy
+scipy
+matplotlib
+pandas
+# data fetching
 aiohttp
 fsspec
 h5py
+# tests
+pytest
+# lint/format hooks
+pre-commit
