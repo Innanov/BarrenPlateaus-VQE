@@ -2,21 +2,22 @@
 
 Results are written under results/<molecule>/<analysis_type>/<timestamp>/ (CSVs,
 JSON summaries, run parameters, plus PDFs written by plots). Every
-run_parameters.json records the data-source path and the current git commit for
-provenance.
+run_parameters.json records the data-source path for provenance.
 """
 
 from __future__ import annotations
 
 import csv
+import glob
 import json
 import os
 from dataclasses import asdict, is_dataclass
+from types import SimpleNamespace
 
 import numpy as np
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.normpath(os.path.join(_THIS_DIR, "..", "..", ".."))
+REPO_ROOT = os.path.normpath(os.path.join(_THIS_DIR, "..", ".."))
 RESULTS_ROOT = os.path.join(REPO_ROOT, "results")
 
 
@@ -35,6 +36,98 @@ def make_output_dir(molecule: str, analysis_type: str, timestamp: str) -> str:
     path = os.path.join(RESULTS_ROOT, molecule, analysis_type, timestamp)
     os.makedirs(path, exist_ok=True)
     return path
+
+
+def resolve_run_dir(run_dir: str | None, molecule: str | None, analysis_type: str) -> str:
+    """Resolve a run directory from an explicit path or the newest matching run.
+
+    If run_dir is given it is returned as-is. Otherwise the newest run under
+    results/<molecule>/<analysis_type>/ is returned (directories sort
+    lexicographically, and the timestamps sort chronologically).
+
+    Args:
+        run_dir: An explicit run directory, or None.
+        molecule: The molecule whose newest run to find, or None.
+        analysis_type: The analysis subfolder, e.g. 'gradient_scaling',
+            'vqe_analysis', or 'vqe_analysis_<tag>'.
+
+    Returns:
+        The resolved run directory path.
+
+    Raises:
+        SystemExit: If neither run_dir nor molecule is given, or no run is found.
+    """
+    if run_dir:
+        return run_dir
+    if not molecule:
+        raise SystemExit("Provide --dir or --molecule.")
+    pattern = os.path.join(RESULTS_ROOT, molecule, analysis_type, "*")
+    dirs = sorted(d for d in glob.glob(pattern) if os.path.isdir(d))
+    if not dirs:
+        raise SystemExit(f"No {analysis_type} runs found for {molecule}.")
+    return dirs[-1]
+
+
+def load_convergence(path: str) -> dict:
+    """Load convergence_history.csv into {optimizer: [plot-ready result, ...]}.
+
+    Uses the energy_global column (energy vs the full Hamiltonian for the whole
+    trajectory), so two-stage methods plot continuously rather than switching
+    observable at a handoff. A row with a blank energy_global is not part of the
+    reported curve and is skipped.
+
+    Args:
+        path: Path to convergence_history.csv.
+
+    Returns:
+        A mapping {optimizer: [SimpleNamespace(method, energy_history,
+        stage_boundaries), ...]} matching what the plot functions read.
+    """
+    acc = {}
+    with open(path, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            opt, m = row["optimizer"], row["method"]
+            it = int(row["iteration"])
+            acc.setdefault(opt, {}).setdefault(m, {"e": {}, "b": set()})
+            g = row.get("energy_global", "")
+            if g == "" or g is None:
+                continue
+            acc[opt][m]["e"][it] = float(g)
+            if int(row["is_stage_boundary"]):
+                acc[opt][m]["b"].add(it)
+    results_by_opt = {}
+    for opt, methods in acc.items():
+        results = []
+        for m, d in methods.items():
+            xs = sorted(d["e"])
+            hist = [d["e"][i] for i in xs]
+            results.append(SimpleNamespace(method=m, energy_history=hist, stage_boundaries=[]))
+        results_by_opt[opt] = results
+    return results_by_opt
+
+
+def system_info(run_dir: str):
+    """Return a run's molecular FCI energy and a title label.
+
+    Reads the molecule from run_parameters.json and loads its cached system.
+
+    Args:
+        run_dir: The run directory holding run_parameters.json.
+
+    Returns:
+        A (fci_energy, label) tuple, e.g. (..., "H2 (4 qubits)"). Both are None if
+        unavailable.
+    """
+    # Imported here to avoid a core<-utils import cycle at module load.
+    from src.core.backend import load_hamiltonian
+
+    try:
+        params = json.load(open(os.path.join(run_dir, "run_parameters.json")))
+        system = load_hamiltonian(params["molecule"], params.get("geometry", "equilibrium"))
+        label = f"{system.molecule} ({system.n_qubits} qubits)"
+        return system.fci_energy, label
+    except Exception:
+        return None, None
 
 
 def _ensure_parent(path: str) -> None:
