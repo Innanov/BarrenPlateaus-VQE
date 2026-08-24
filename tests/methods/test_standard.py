@@ -9,38 +9,12 @@ Run with: pytest tests/methods/test_standard.py
 """
 
 import numpy as np
-import pennylane as qml
 import pytest
 
 from src.core.ansatze import EfficientSU2
-from src.core.backend import MolecularSystem, build_optimizer
+from src.core.backend import build_optimizer
 from src.core.methods import MethodConfig, standard
 from src.core.methods.base import _make_cost, _optimize
-
-
-@pytest.fixture
-def two_qubit_system():
-    """A small 2-qubit MolecularSystem for the method tests.
-
-    We construct the MolecularSystem with a hand-written 2-qubit
-    Hamiltonian (a small transverse-field Ising) instead of loading a real
-    molecule from the data/ cache, so the test is self-contained and fast. Its
-    exact ground_state and ground_energy are solved on first access, only when a
-    test uses them.
-    """
-    h = qml.Hamiltonian(
-        [1.0, 1.0, 0.5, 0.5],
-        [qml.PauliZ(0) @ qml.PauliZ(1), qml.PauliX(0), qml.PauliX(1), qml.PauliZ(0)],
-    )
-    return MolecularSystem(
-        molecule="test",
-        geometry="equilibrium",
-        basis="sto-3g",
-        bondlength=0.0,
-        n_qubits=2,
-        fci_energy=0.0,
-        hamiltonian=h,
-    )
 
 
 def test_standard_is_single_stage(two_qubit_system):
