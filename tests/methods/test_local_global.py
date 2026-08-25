@@ -47,20 +47,20 @@ def test_local_cost_minimized_at_ground_state(two_qubit_system):
 
 
 def test_two_stage_bookkeeping(two_qubit_system):
-    """The stages account for exactly max_iters and are recorded consistently.
+    """The stages are recorded consistently, with the main stage at full max_iters.
 
-    warm_iters go to the warm-up and the rest to the main stage, so the total is
-    max_iters, the same budget every method gets, with the boundary at warm_iters.
-    The global curve re-scores the whole parameter path, so it has the same length
-    as param_history.
+    The warm-up runs warm_iters as extra preparation and the main stage runs the
+    full max_iters, so the whole record is warm_iters + max_iters long, with the
+    boundary at warm_iters. The global curve re-scores the whole parameter path, so
+    it has the same length as param_history.
     """
     cfg = MethodConfig(depth=1, max_iters=5, warm_iters=2, seed=0)
     result = local_global(two_qubit_system, cfg)
 
     assert result.stage_boundaries == [cfg.warm_iters]
-    assert len(result.energy_history) == cfg.max_iters
+    assert len(result.energy_history) == cfg.warm_iters + cfg.max_iters
     assert len(result.energy_history_global) == len(result.param_history)
-    assert len(result.param_history) == cfg.max_iters
+    assert len(result.param_history) == cfg.warm_iters + cfg.max_iters
 
 
 def test_warm_start_continuity(two_qubit_system):

@@ -39,33 +39,33 @@ def test_zero_padded_transfer_reproduces_diagonal_state():
 
 
 def test_two_stage_bookkeeping(four_qubit_system):
-    """The two stages account for max_iters and are recorded consistently.
+    """The two stages are recorded consistently, with the full stage at max_iters.
 
-    warm_iters go to the MPS stage and the rest to the full stage, so the full
-    record is max_iters long, the same budget every method gets, with the handoff
-    at warm_iters. The reported convergence is the full (quantum) stage only, so
-    energy_history_global has max_iters - warm_iters entries.
+    The MPS pre-training runs warm_iters as extra preparation and the full stage
+    runs the full max_iters, so the whole record is warm_iters + max_iters long,
+    with the handoff at warm_iters. The reported convergence is the full (quantum)
+    stage only, so energy_history_global has max_iters entries.
     """
     cfg = MethodConfig(depth=1, max_iters=5, warm_iters=2, seed=0)
     result = pretrained(four_qubit_system, cfg)
 
     assert result.stage_boundaries == [cfg.warm_iters]
-    assert len(result.energy_history) == cfg.max_iters
-    assert len(result.energy_history_global) == cfg.max_iters - cfg.warm_iters
+    assert len(result.energy_history) == cfg.warm_iters + cfg.max_iters
+    assert len(result.energy_history_global) == cfg.max_iters
 
 
 def test_reported_ansatz_is_full_mps(four_qubit_system):
     """The reported ansatz and params are the full stage's.
 
     The final params live in the full ansatz's parameter space, and param_history
-    covers the full (quantum) stage only, which runs max_iters - warm_iters steps.
+    covers the full (quantum) stage only, which runs max_iters steps.
     """
     cfg = MethodConfig(depth=1, max_iters=5, warm_iters=2, seed=0)
     result = pretrained(four_qubit_system, cfg)
 
     full = MPS(four_qubit_system.n_qubits, d=cfg.depth, diagonal=False)
     assert result.n_params == full.n_params
-    assert len(result.param_history) == cfg.max_iters - cfg.warm_iters
+    assert len(result.param_history) == cfg.max_iters
     assert np.asarray(result.params).shape[0] == full.n_params
 
 

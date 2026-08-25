@@ -44,10 +44,11 @@ def local_global(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     has polynomially vanishing gradients and is minimized at the true ground
     state. The global stage then refines against the actual molecular energy.
 
-    Of the max_iters total iterations, warm_iters go to the local warm-up and the
-    rest to the global stage, so the total matches every other method for a fair
-    comparison. One optimizer spans both stages (reset=False on the global stage),
-    so its state carries across the handoff.
+    The local warm-up runs warm_iters as extra preparation, then the global stage
+    runs the full max_iters, so every method's main stage has the same length (the
+    warm-up is on top, not carved out of max_iters). One optimizer spans both
+    stages (reset=False on the global stage), so its state carries across the
+    handoff.
     """
     n = system.n_qubits
     ansatz = EfficientSU2(n, d=config.depth)
@@ -58,14 +59,13 @@ def local_global(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     cost_local = _make_cost(ansatz, h_local, n)
     cost_global = _make_cost(ansatz, system.hamiltonian, n)
 
-    warm_iters = min(config.warm_iters, config.max_iters)
-    main_iters = config.max_iters - warm_iters
-
     opt = build_optimizer(config.optimizer, seed=config.seed, **config.optimizer_kwargs)
-    params, hist_local, phist_local = _optimize(cost_local, params, opt, warm_iters)
+    params, hist_local, phist_local = _optimize(cost_local, params, opt, config.warm_iters)
     boundary = len(hist_local)
 
-    params, hist_global, phist_global = _optimize(cost_global, params, opt, main_iters, reset=False)
+    params, hist_global, phist_global = _optimize(
+        cost_global, params, opt, config.max_iters, reset=False
+    )
 
     history = hist_local + hist_global
     full_params = phist_local + phist_global

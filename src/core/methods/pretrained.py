@@ -33,22 +33,19 @@ def pretrained(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     blocks. The two circuits differ, so their energies are not on one continuous
     curve, and only the full stage is reported as the convergence.
 
-    Of the max_iters total iterations, warm_iters go to the MPS pre-training and
-    the rest to the full stage, so the total matches every other method for a fair
-    comparison.
+    The MPS pre-training runs warm_iters as extra preparation, then the full stage
+    runs the full max_iters, so every method's main stage has the same length (the
+    warm-up is on top, not carved out of max_iters).
     """
     n = system.n_qubits
     rng = np.random.default_rng(config.seed)
-
-    warm_iters = min(config.warm_iters, config.max_iters)
-    full_iters = config.max_iters - warm_iters
 
     # Stage 1: MPS pretraining (diagonal-only staircase).
     mps = MPS(n, d=config.depth, diagonal=True)
     mps_params = mps.random_params(rng)
     cost_mps = _make_cost(mps, system.hamiltonian, n)
     opt = build_optimizer(config.optimizer, seed=config.seed, **config.optimizer_kwargs)
-    mps_params, hist_mps, _ = _optimize(cost_mps, mps_params, opt, warm_iters)
+    mps_params, hist_mps, _ = _optimize(cost_mps, mps_params, opt, config.warm_iters)
     boundary = len(hist_mps)
 
     # Stage 2: full ansatz, warm-started by the prefix zero-pad transfer.
@@ -59,7 +56,7 @@ def pretrained(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     full_params = pnp.array(init, requires_grad=True)
     cost_full = _make_cost(full, system.hamiltonian, n)
     opt2 = build_optimizer(config.optimizer, seed=config.seed + 1, **config.optimizer_kwargs)
-    full_params, hist_full, phist_full = _optimize(cost_full, full_params, opt2, full_iters)
+    full_params, hist_full, phist_full = _optimize(cost_full, full_params, opt2, config.max_iters)
 
     combined = hist_mps + hist_full  # full record (MPS pre-stage + quantum stage)
     return MethodResult(

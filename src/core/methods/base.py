@@ -28,16 +28,15 @@ class MethodConfig:
         depth: Ansatz depth (kept identical across methods for a comparison).
         optimizer: Optimizer name ('adam', 'qng', or 'qnspsa').
         optimizer_kwargs: Extra keyword args for the optimizer.
-        max_iters: Total optimizer iterations, the SAME for every method so they
-            compare iteration-for-iteration. Single-stage methods spend all of it
-            on the one stage. Two-stage methods split it (see warm_iters), and
-            adiabatic distributes it across its stages.
+        max_iters: Iterations of the main stage, the SAME for every method so their
+            main-stage convergence compares iteration-for-iteration. Single-stage
+            methods run this once, and adiabatic distributes it across its stages.
         seed: RNG seed for the initial parameters (reproducibility).
-        warm_iters: How many of the max_iters iterations the two-stage methods
-            (local_global's local-cost warm-up, pretrained's MPS pre-training)
-            spend on the warm-up stage. The remaining max_iters - warm_iters go to
-            the main stage, so the total is still max_iters. Must be < max_iters.
-            Ignored by single-stage methods (standard, sea, adiabatic).
+        warm_iters: Iterations of the warm-up stage for the two-stage methods
+            (local_global's local-cost warm-up, pretrained's MPS pre-training),
+            run as extra preparation ON TOP of max_iters so the main stage still
+            gets the full max_iters. Ignored by single-stage methods (standard,
+            sea, adiabatic).
         adiabatic_steps: Number of anneal stages for the adiabatic method. The
             Hamiltonian is held fixed within each stage, which runs
             max_iters / adiabatic_steps iterations warm-started from the previous.

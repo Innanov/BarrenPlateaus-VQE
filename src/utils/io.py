@@ -71,10 +71,11 @@ def resolve_run_dir(run_dir: str | None, molecule: str | None, analysis_type: st
 def load_convergence(path: str) -> dict:
     """Load convergence_history.csv into {optimizer: [plot-ready result, ...]}.
 
-    Uses the energy_global column (energy vs the full Hamiltonian for the whole
-    trajectory), so two-stage methods plot continuously rather than switching
-    observable at a handoff. A row with a blank energy_global is not part of the
-    reported curve and is skipped.
+    Uses the energy_global column (energy vs the full Hamiltonian). For the
+    two-stage methods, only the main stage is kept (the rows from the stage
+    boundary on), so the plotted curve is the refinement against the full H, like
+    qubap, without the warm-up stage or the jump at the handoff. A row with a
+    blank energy_global is not part of the reported curve and is skipped.
 
     Args:
         path: Path to convergence_history.csv.
@@ -99,7 +100,11 @@ def load_convergence(path: str) -> dict:
     for opt, methods in acc.items():
         results = []
         for m, d in methods.items():
-            xs = sorted(d["e"])
+            # Two-stage methods carry a stage boundary. Drop the warm-up (keep the
+            # main stage from the boundary on) so the curve matches qubap, with no
+            # handoff jump.
+            start = min(d["b"]) if d["b"] else 0
+            xs = [i for i in sorted(d["e"]) if i >= start]
             hist = [d["e"][i] for i in xs]
             results.append(SimpleNamespace(method=m, energy_history=hist, stage_boundaries=[]))
         results_by_opt[opt] = results
