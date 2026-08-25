@@ -14,14 +14,14 @@ from __future__ import annotations
 
 import argparse
 import csv
-import glob
 import os
 import sys
 from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.utils import io, plots  # noqa: E402
+from src.utils import io  # noqa: E402
+from src.utils import plotting as plots  # noqa: E402
 
 
 def parse_args(argv=None):
@@ -34,23 +34,6 @@ def parse_args(argv=None):
         "--molecule", "-m", help="Render the newest gradient_scaling run for this molecule."
     )
     return p.parse_args(argv)
-
-
-def _resolve_dir(args) -> str:
-    """Resolve the run directory from --dir or --molecule.
-
-    Raises:
-        SystemExit: If no directory can be resolved.
-    """
-    if args.dir:
-        return args.dir
-    if args.molecule:
-        pattern = os.path.join(io.RESULTS_ROOT, args.molecule, "gradient_scaling", "*")
-        dirs = sorted(d for d in glob.glob(pattern) if os.path.isdir(d))
-        if not dirs:
-            raise SystemExit(f"No gradient_scaling runs found for {args.molecule}.")
-        return dirs[-1]
-    raise SystemExit("Provide --dir or --molecule.")
 
 
 def _load_points(path):
@@ -76,7 +59,7 @@ def _load_points(path):
 def main(argv=None) -> int:
     """Render the gradient-scaling figure from saved data."""
     args = parse_args(argv)
-    run_dir = _resolve_dir(args)
+    run_dir = io.resolve_run_dir(args.dir, args.molecule, "gradient_scaling")
     csv_path = os.path.join(run_dir, "scaling_analysis_data.csv")
     if not os.path.isfile(csv_path):
         raise SystemExit(f"No scaling_analysis_data.csv in {run_dir}")

@@ -70,10 +70,6 @@ def json_path(molecule: str, geometry: str = "equilibrium") -> str:
     return os.path.join(DATA_DIR, f"{molecule}_{geometry}.json")
 
 
-def dataset_available(molecule: str, geometry: str = "equilibrium") -> bool:
-    return os.path.isfile(json_path(molecule, geometry))
-
-
 def _term_to_observable(pauli_string: str):
     """Convert a Pauli string to a PennyLane tensor observable.
 

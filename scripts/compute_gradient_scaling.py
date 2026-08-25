@@ -22,9 +22,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.core import gradient_scaling as gs  # noqa: E402
-from src.core.devices import active_backend  # noqa: E402
-from src.core.hamiltonians import load_hamiltonian, verify_against_fci  # noqa: E402
+from src.core.analysis import gradient_scaling as gs  # noqa: E402
+from src.core.backend import active_backend  # noqa: E402
+from src.core.backend import load_hamiltonian, verify_against_fci  # noqa: E402
 from src.utils import io  # noqa: E402
 from src.utils.helpers import timestamp  # noqa: E402
 

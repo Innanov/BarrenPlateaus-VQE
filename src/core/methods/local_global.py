@@ -25,7 +25,7 @@ from pennylane import numpy as pnp
 from ...utils.helpers import single_qubit_marginals
 from ..ansatze import EfficientSU2
 from ..backend import MolecularSystem, build_optimizer
-from .base import MethodConfig, MethodResult, _make_cost, _optimize
+from .base import MethodConfig, MethodResult, _fixed_hamiltonian, _make_cost, _optimize
 
 _PAULI_MATS = {
     "I": np.array([[1, 0], [0, 1]], dtype=complex),
@@ -47,9 +47,7 @@ def local_global(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     Of the max_iters total iterations, warm_iters go to the local warm-up and the
     rest to the global stage, so the total matches every other method for a fair
     comparison. One optimizer spans both stages (reset=False on the global stage),
-    so its state carries across the handoff. energy_history holds the raw per-stage
-    energies, while energy_history_global re-scores the whole parameter path
-    against the full Hamiltonian for a continuous curve.
+    so its state carries across the handoff.
     """
     n = system.n_qubits
     ansatz = EfficientSU2(n, d=config.depth)
@@ -125,6 +123,4 @@ def local_cost_observable(ground_state, n_qubits: int) -> qml.Hamiltonian:
             else:
                 coeffs.append(-inv_n * c)
                 obs.append(_PAULI_OP[label](j))
-    # Coefficients are fixed constants, never optimized: mark non-trainable so
-    # adjoint differentiation does not warn.
-    return qml.Hamiltonian(pnp.array(coeffs, requires_grad=False), obs).simplify()
+    return _fixed_hamiltonian(coeffs, obs)

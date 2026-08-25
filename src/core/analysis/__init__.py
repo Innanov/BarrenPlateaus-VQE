@@ -2,14 +2,7 @@
 
 from .gradient_scaling import GradientScalingPoint, gradient_scaling
 from .landscape import Landscape, TrajectoryProjection, compute_landscape
-from .metrics import (
-    energy_error,
-    fidelity,
-    gradient_norm,
-    gradient_variance,
-    stability,
-    statevector,
-)
+from .metrics import energy_error, fidelity, gradient_norm, gradient_variance, statevector
 
 __all__ = [
     "gradient_scaling",
@@ -21,6 +14,5 @@ __all__ = [
     "fidelity",
     "gradient_norm",
     "gradient_variance",
-    "stability",
     "statevector",
 ]

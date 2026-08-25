@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pennylane as qml
+from pennylane import numpy as pnp
 
 from ..ansatze import Ansatz
 from ..backend import MolecularSystem, Optimizer, make_device
@@ -93,6 +94,23 @@ class MethodResult:
     param_history: list = field(default_factory=list)
     energy_history_global: list = field(default_factory=list)
     runtime_s: float = -1.0
+
+
+def _fixed_hamiltonian(coeffs, obs) -> qml.Hamiltonian:
+    """Build a simplified qml.Hamiltonian with non-trainable coefficients.
+
+    The coefficients are fixed constants, never optimized, so they are marked
+    non-trainable (requires_grad=False) to stop adjoint differentiation warning
+    about them.
+
+    Args:
+        coeffs: The term coefficients.
+        obs: The term observables.
+
+    Returns:
+        The simplified Hamiltonian.
+    """
+    return qml.Hamiltonian(pnp.array(coeffs, requires_grad=False), obs).simplify()
 
 
 def _make_cost(ansatz: Ansatz, hamiltonian: qml.Hamiltonian, n_qubits: int) -> Callable:

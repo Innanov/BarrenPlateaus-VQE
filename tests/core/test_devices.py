@@ -11,8 +11,7 @@ import pennylane as qml
 import pytest
 from pennylane import numpy as pnp
 
-from src.core import devices
-from src.core.devices import BACKENDS, active_backend, make_device
+from src.core.backend import BACKENDS, active_backend, devices, make_device
 
 
 def _expval(dev):

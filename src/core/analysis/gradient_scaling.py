@@ -19,7 +19,7 @@ from dataclasses import dataclass
 import numpy as np
 import pennylane as qml
 
-from ...utils.helpers import format_duration
+from ...utils.progress import format_duration
 from ..ansatze import build_ansatz
 from ..backend import MolecularSystem, make_device
 
