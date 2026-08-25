@@ -83,10 +83,13 @@ class QNG(Optimizer):
     Attributes:
         stepsize: Learning rate.
         approx: Metric-tensor approximation ("block-diag" or "diag").
-        lam: Regularization added to the metric before inversion.
+        lam: Tikhonov regularization added to the metric before inversion. A
+            nonzero default keeps steps bounded when the Fubini-Study metric is
+            near-singular (common in flat/barren regions), which otherwise causes
+            occasional huge natural-gradient steps.
     """
 
-    def __init__(self, stepsize=0.1, approx="block-diag", lam=0.0):
+    def __init__(self, stepsize=0.1, approx="block-diag", lam=1e-2):
         self.stepsize = stepsize
         self.approx = approx
         self.lam = lam
