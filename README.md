@@ -1,6 +1,7 @@
-# BarrenPlateausVQE.jl
+# BarrenPlateaus-VQE
 
-A Julia package for studying barren plateau phenomena in VQE algorithms using molecular Hamiltonians from the PennyLane qchem collection. Built with Yao.jl.
+A PennyLane implementation for studying barren-plateau phenomena in VQE using
+molecular Hamiltonians from the PennyLane qchem collection.
 
 > *"Investigating Different Barren Plateaus Mitigation Strategies in Variational Quantum Eigensolver"*
 > -- Mostafa Atallah, Nouhaila Innan, Muhammad Kashif, Muhammad Shafique
@@ -8,92 +9,135 @@ A Julia package for studying barren plateau phenomena in VQE algorithms using mo
 
 ## Features
 
-- **5 VQE Methods**: Standard, Local-Global, Adiabatic, SEA, Pretrained
-- **35 Molecules** (4-32 qubits): Pre-fetched from PennyLane and cached as JSON
-- **Analysis**: Gradient variance scaling, loss landscapes, convergence, barren plateau detection
+- **5 VQE methods**: Standard (baseline) plus four mitigation methods
+  (Local-Global, Adiabatic, SEA, Pretrained), all at a matched depth and iteration
+  budget for a fair comparison.
+- **Molecular systems** (4 to 32 qubits): pre-fetched from PennyLane and cached as
+  JSON.
+- **Metrics**: energy error, real state fidelity, and gradient-variance scaling
+  (the barren-plateau metric), plus loss-landscape and convergence figures.
+- **Three gradient optimizers**: Adam, QNG (quantum natural gradient), and QN-SPSA,
+  compared iteration-for-iteration.
 
 ## Setup
 
-**Prerequisites**: Julia 1.8+, Python 3.10
+**Prerequisites**: Python 3.10.
 
 ```bash
 git clone https://github.com/Innanov/BarrenPlateaus-VQE.git && cd BarrenPlateaus-VQE
-julia setup.jl                        # or: julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate()'
+git checkout pennylane
+py -3.10 -m venv .venv310 && .venv310\Scripts\Activate.ps1   # Windows
+pip install -r requirements.txt
 ```
 
-**Fetch Hamiltonians** (one-time, requires Python 3.10 venv):
+**Fetch Hamiltonians** (one-time, writes JSON files to `data/`):
+
 ```bash
-py -3.10 -m venv .venv310 && .venv310\Scripts\Activate.ps1
-pip install pennylane aiohttp fsspec h5py
-python scripts/fetch_hamiltonians.py  # saves 85 JSON files to data/
+python scripts/fetch_hamiltonians.py
 ```
+
+### Simulator backend
+
+QNodes run on **`lightning.qubit`** (the fast C++ statevector simulator, pulled in
+by `pennylane-lightning`) by default, roughly 50x faster than `default.qubit` on
+the 12 to 14 qubit systems. Override with the `BPVQE_DEVICE` environment variable.
+The code falls back to `default.qubit` if the requested device is unavailable, and
+records the resolved backend in each run's `run_parameters.json`.
+
+> **GPU:** `lightning.gpu` (cuQuantum) is faster still but ships **Linux-only**.
+> There is no Windows wheel, so it is not used on Windows. On Linux with an NVIDIA
+> GPU: `pip install pennylane-lightning-gpu` then `BPVQE_DEVICE=lightning.gpu`.
+
+The mitigation methods are ported to PennyLane in `src/core/methods`. The
+published [qubap](https://github.com/jgidi/quantum-barren-plateaus) package, which
+ships only Qiskit implementations, is the credited upstream reference. It is
+**not** a runtime dependency.
 
 ## Usage
 
-**Scripts** (recommended):
+Computation and plotting are **separate**: `compute_*.py` runs the physics and
+saves all data (CSV + NPZ) with no figures. `plot_*.py` rebuilds the figures from
+that saved data, so restyling a plot never re-runs the expensive physics.
+
 ```bash
-# VQE analysis -- all methods on a molecule
-julia --project=. scripts/molecular_vqe_analysis.jl --molecule LiH --layers 2 --iterations 1000 --methods all --verbose
+# COMPUTE: VQE analysis -- all five methods across all three optimizers by
+# default. Saves the performance table, convergence_history.csv, and
+# landscape_<method>.npz (grid + trajectories). No PDFs.
+python scripts/compute_vqe_analysis.py --molecule LiH --depth 4 --iters 1000
 
-# Gradient variance vs circuit depth
-julia --project=. scripts/gradient_variance_scaling.jl --molecule H2 --max-layers 15 --samples 100
+#   ...a single optimizer, or skip landscapes, if desired:
+python scripts/compute_vqe_analysis.py --molecule LiH --optimizers adam --no-landscape
+
+# COMPUTE: gradient-variance scaling vs depth (the barren-plateau metric).
+# Optimizer-independent -- samples gradients at random inits, no optimization.
+python scripts/compute_gradient_scaling.py --molecules H2 LiH BeH2 --max-layers 50 --samples 100
+
+# PLOT: rebuild figures from the saved data (re-run any time to restyle).
+python scripts/plot_vqe_analysis.py --molecule LiH        # newest LiH VQE run
+python scripts/plot_gradient_scaling.py --molecule H2     # newest H2 gradient run
+python scripts/plot_vqe_analysis.py --dir results/LiH/vqe_analysis/<timestamp>
+
+# REBUILD: re-sample the landscapes of a run from its saved optimizer paths,
+# without re-running the VQE (e.g. after a landscape-method change).
+python scripts/rebuild_landscapes.py --molecule LiH
 ```
 
-Results are saved to `results/<molecule>/<analysis_type>/<timestamp>/`.
+Results are written to `results/<molecule>/<analysis_type>/<timestamp>/`, with a
+`run_parameters.json` recording the run parameters, data path, and device for
+provenance. The performance CSV carries an `optimizer` column so every optimizer's
+metrics (energy, error, real fidelity) sit in one table. `n_params` and the
+gradient-variance metric are optimizer-independent.
 
-**Julia API**:
-```julia
-using BarrenPlateausVQE
+### Library API
 
-analyzer = MolecularVQEAnalyzer("H2", n_layers=2)
-results = run_complete_analysis(analyzer, num_iters=500)
-create_comprehensive_visualization(analyzer, output_dir="./results/H2")
+```python
+from src.core.backend import load_hamiltonian
+from src.core.methods import run_method, MethodConfig
+from src.core.analysis import metrics
+
+system = load_hamiltonian("H2", "equilibrium")
+cfg = MethodConfig(depth=4, optimizer="adam", max_iters=500)
+result = run_method("standard", system, cfg)
+
+print(result.final_energy, metrics.fidelity(result.ansatz, result.params, system))
 ```
 
-## VQE Methods
+## VQE methods
 
-| Method | Description | Key Setting |
-|--------|-------------|-------------|
-| **Standard** | Hardware-efficient ansatz + SPSA | `rotation_gates=[:Rx,:Ry]`, circular entanglement |
-| **Local-Global** | Local warmup then global refinement | 1/3 local + 2/3 global split |
-| **Adiabatic** | Interpolate mixer to target Hamiltonian | 10 adiabatic steps |
-| **SEA** | Full-connectivity CNOT ansatz | `depth=[1,1,1]` |
-| **Pretrained** | MPS pretraining then full optimization | 1/4 pretrain + 3/4 full |
+Every mitigation method generalizes a method from qubap. See each method module
+for its own reference.
 
-## Supported Molecules
+| Method | Description |
+|--------|-------------|
+| **Standard** | The unmitigated baseline: EfficientSU2 (Ry, Rz + circular CNOT) optimized directly against the full H. |
+| **Local-Global** | Warm-start on a ground-state local cost (Cerezo et al.), then refine on the full H. |
+| **Adiabatic** | Staged anneal `(1-s)*H_local + s*H_global`, each stage held fixed and warm-started from the previous. |
+| **SEA** | Standard VQE with the State Efficient Ansatz (ported from qubap), which requires an even qubit count. |
+| **Pretrained** | Two-stage MPS: train the diagonal MPS stage, transfer by prefix zero-pad into the full MPS stage, then refine. |
 
-35 molecules from PennyLane qchem (85 JSON files). Geometries: equilibrium, stretched, compressed where available.
-
-| Qubits | Molecules |
-|--------|-----------|
-| 4 | H2, HeH+ |
-| 6-10 | H3+, H4, He2, H5 |
-| 12 | H6, HF, LiH, NeH+, OH- |
-| 14 | BeH2, CH2, H2O, H7 |
-| 16-18 | BH3, H8, NH3, CH4 |
-| 20 | C2, CO, H10, Li2, N2, O2 |
-| 22-24 | HCN, C2H2, CH2O, H2O2, N2H2 |
-| 28-32 | C2H4, N2H4, CO2, O3, C2H6 |
-
-## Project Structure
+## Project structure
 
 ```
 src/
-  BarrenPlateausVQE.jl              # Main module
   core/
-    hamiltonian_builder.jl          # Hamiltonians & energy evaluation
-    ansatz_library.jl               # Ansatz circuits (SU2, MPS, SEA)
-    dataset_loader.jl               # JSON cache loader
-    molecular_analyzer.jl           # Analysis orchestration
-    methods/                        # 5 VQE implementations
-  utils/                            # Quantum utils, visualization, circuit plots
+    ansatze/      # EfficientSU2, MPS, SEA
+    backend/      # devices, hamiltonians (JSON -> qml.Hamiltonian, sparse ground state), optimizers
+    analysis/     # gradient-variance scaling, loss landscape, metrics
+    methods/      # the 5 methods (one module each), plus base (config/result, cost, loop, registry)
+  utils/
+    helpers.py    # small shared helpers (statevector, tape_ops, ising_system, ...)
+    io.py         # output dirs, CSV/JSON/NPZ writers + loaders, run-dir resolution, provenance
+    plotting.py   # convergence, gradient scaling, 3D + contour landscapes (IEEE style)
+    progress.py   # format_duration and the elapsed/ETA console logger
 scripts/
-  fetch_hamiltonians.py             # Python: fetch from PennyLane
-  molecular_vqe_analysis.jl         # VQE comparison analysis
-  gradient_variance_scaling.jl      # Gradient variance vs depth
-  generate_circuit_plots.jl         # Circuit diagrams
-data/                               # Cached Hamiltonian JSONs (git-ignored)
-results/                            # Analysis output (git-ignored)
+  fetch_hamiltonians.py         # fetch from PennyLane -> data/*.json
+  compute_vqe_analysis.py       # COMPUTE: VQE physics -> CSV + landscape NPZ (no plots)
+  compute_gradient_scaling.py   # COMPUTE: gradient-variance sweep -> CSV (no plots)
+  plot_vqe_analysis.py          # PLOT: rebuild convergence + landscape figures from saved data
+  plot_gradient_scaling.py      # PLOT: rebuild the gradient-scaling figure from saved data
+  rebuild_landscapes.py         # re-sample landscapes from saved optimizer paths (no VQE re-run)
+data/                           # cached Hamiltonian JSONs (git-ignored)
+results/                        # analysis output: data (CSV/NPZ) + figures (git-ignored)
 ```
 
 ## Citation
