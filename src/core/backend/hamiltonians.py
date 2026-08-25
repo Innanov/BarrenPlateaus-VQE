@@ -27,7 +27,7 @@ from pennylane import numpy as pnp  # noqa: F401  (re-exported for callers)
 from scipy.sparse.linalg import eigsh
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.normpath(os.path.join(_THIS_DIR, "..", "..", "data"))
+DATA_DIR = os.path.normpath(os.path.join(_THIS_DIR, "..", "..", "..", "data"))
 
 _PAULI = {"X": qml.PauliX, "Y": qml.PauliY, "Z": qml.PauliZ}
 
