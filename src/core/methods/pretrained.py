@@ -40,6 +40,12 @@ def pretrained(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     near-optimal state that a full-stepsize first step would overshoot and disrupt.
     This mirrors qubap continuing its decayed optimizer schedule into the full
     stage rather than restarting at full step size.
+
+    With QNG the full stage uses the diagonal metric approximation. QNG's
+    block-diagonal metric on this MPS ansatz is not positive semi-definite (it has
+    negative eigenvalues), so its inverse gives wrong-way steps that spike the
+    convergence curve. The diagonal metric is always positive semi-definite, so it
+    stays valid at every molecule size, and is cheaper.
     """
     n = system.n_qubits
     rng = np.random.default_rng(config.seed)
@@ -61,6 +67,8 @@ def pretrained(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     cost_full = _make_cost(full, system.hamiltonian, n)
     stage2_kwargs = dict(config.optimizer_kwargs)
     stage2_kwargs["stepsize"] = 0.2 * config.optimizer_kwargs.get("stepsize", 0.1)
+    if config.optimizer.lower() == "qng":
+        stage2_kwargs.setdefault("approx", "diag")
     opt2 = build_optimizer(config.optimizer, seed=config.seed + 1, **stage2_kwargs)
     full_params, hist_full, phist_full = _optimize(cost_full, full_params, opt2, config.max_iters)
 
