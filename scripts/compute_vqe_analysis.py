@@ -47,8 +47,8 @@ def parse_args(argv=None):
         "--optimizers",
         "-o",
         nargs="+",
-        default=["adam", "qng", "qnspsa"],
-        choices=["adam", "qng", "qnspsa"],
+        default=["adam", "qng", "adagrad"],
+        choices=["adam", "qng", "adagrad"],
         help="Optimizers to run.",
     )
     p.add_argument("--iters", type=int, default=1000, help="Main-stage iterations.")

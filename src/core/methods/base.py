@@ -26,7 +26,7 @@ class MethodConfig:
 
     Attributes:
         depth: Ansatz depth (kept identical across methods for a comparison).
-        optimizer: Optimizer name ('adam', 'qng', or 'qnspsa').
+        optimizer: Optimizer name ('adam', 'qng', or 'adagrad').
         optimizer_kwargs: Extra keyword args for the optimizer.
         max_iters: Iterations of the main stage, the SAME for every method so their
             main-stage convergence compares iteration-for-iteration. Single-stage

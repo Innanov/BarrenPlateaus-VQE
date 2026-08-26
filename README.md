@@ -16,7 +16,7 @@ molecular Hamiltonians from the PennyLane qchem collection.
   JSON.
 - **Metrics**: energy error, real state fidelity, and gradient-variance scaling
   (the barren-plateau metric), plus loss-landscape and convergence figures.
-- **Three gradient optimizers**: Adam, QNG (quantum natural gradient), and QN-SPSA,
+- **Three gradient optimizers**: Adam, QNG (quantum natural gradient), and Adagrad,
   compared iteration-for-iteration.
 
 ## Setup

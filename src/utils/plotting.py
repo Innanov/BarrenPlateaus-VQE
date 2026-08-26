@@ -47,7 +47,7 @@ _END_STYLE = dict(color="red", marker="*", s=110, edgecolors="black", linewidths
 _TRAJ_COLORS = {
     "adam": "orangered",
     "qng": "deepskyblue",
-    "qnspsa": "magenta",
+    "adagrad": "magenta",
     "trajectory": "magenta",
 }
 _TRAJ_FALLBACK = ["magenta", "orangered", "deepskyblue", "black"]
@@ -121,7 +121,7 @@ def plot_convergence_grid(
 
     Args:
         results_by_opt: Mapping {optimizer_name: [MethodResult, ...]} (e.g.
-            {"adam": [...], "qng": [...], "qnspsa": [...]}). Insertion order sets
+            {"adam": [...], "qng": [...], "adagrad": [...]}). Insertion order sets
             the panel order.
         path: Destination figure path (.pdf).
         fci_energy: Optional reference energy drawn as a horizontal line in each
@@ -202,7 +202,7 @@ def plot_convergence_optimizers(
 
     Args:
         results_by_opt: Mapping {optimizer_name: [MethodResult, ...]} (e.g.
-            {"adam": [...], "qng": [...], "qnspsa": [...]}). Insertion order sets
+            {"adam": [...], "qng": [...], "adagrad": [...]}). Insertion order sets
             the line-style assignment.
         path: Destination figure path (.pdf).
         fci_energy: Optional reference energy drawn as a horizontal line.
