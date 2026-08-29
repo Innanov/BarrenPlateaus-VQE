@@ -1,0 +1,30 @@
+{
+  "molecule": "H4",
+  "geometry": "equilibrium",
+  "depth": 4,
+  "optimizers": [
+    "spsa",
+    "adam",
+    "cobyla"
+  ],
+  "iters": 1000,
+  "warm_iters": 150,
+  "methods": [
+    "standard",
+    "local_global",
+    "adiabatic",
+    "sea",
+    "pretrained"
+  ],
+  "seed": 0,
+  "eval_budget": 1000,
+  "cost_model": "adjoint",
+  "landscape_res": 31,
+  "no_landscape": false,
+  "tag": null,
+  "device": "lightning.qubit",
+  "_provenance": {
+    "git_commit": "31edf2e",
+    "data_dir": "F:\\QML-Barren Plateaus\\code\\BarrenPlateaus-VQE\\data"
+  }
+}

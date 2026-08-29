@@ -1,0 +1,18 @@
+# Shared tool configuration for the pre-commit linters (ruff, black, isort).
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"          # keep isort and black from fighting over import formatting
+line_length = 100
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes, I: isort, B: bugbear, UP: pyupgrade.
+select = ["E", "W", "F", "B", "UP"]
+# E501 (line too long) is handled by black; ignore it in the linter to avoid overlap.
+ignore = ["E501"]

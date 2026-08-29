@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""
-fetch_hamiltonians.py
----------------------
+"""Download molecular Hamiltonians from PennyLane Datasets into a JSON cache.
+
 Downloads molecular Hamiltonians from PennyLane Datasets (qchem collection)
-and saves them as JSON files that the Julia package can load directly,
-bypassing the expensive compute_molecular_integrals + jordan_wigner_transform
-pipeline at runtime.
+and saves them as JSON files that the loader (src/core/hamiltonians.py) reads
+directly, bypassing the expensive integral + Jordan-Wigner pipeline at runtime.
 
 Output (one file per molecule/geometry):
     data/<MOLECULE>_<geometry>.json
@@ -44,33 +42,57 @@ import json
 import os
 import sys
 
-
-# ---------------------------------------------------------------------------
-# Molecule list
-# All molecules confirmed from XanaduAI/pennylane-datasets/content/qchem/
+# Molecules confirmed from XanaduAI/pennylane-datasets/content/qchem/
 # (nh2 excluded: no dataset.json, not loadable via qml.data.load)
-# ---------------------------------------------------------------------------
 
 ALL_MOLECULES = [
     # diatomics
-    "H2", "He2", "Li2", "C2", "N2", "O2", "CO", "HF",
+    "H2",
+    "He2",
+    "Li2",
+    "C2",
+    "N2",
+    "O2",
+    "CO",
+    "HF",
     # ions
-    "HeH+", "NeH+", "OH-",
+    "HeH+",
+    "NeH+",
+    "OH-",
     # hydrogen chains
-    "H3+", "H4", "H5", "H6", "H7", "H8", "H10",
+    "H3+",
+    "H4",
+    "H5",
+    "H6",
+    "H7",
+    "H8",
+    "H10",
     # small polyatomics
-    "LiH", "BeH2", "BH3", "CH2", "NH3", "H2O", "H2O2",
-    "CH4", "CH2O", "HCN", "O3", "CO2",
+    "LiH",
+    "BeH2",
+    "BH3",
+    "CH2",
+    "NH3",
+    "H2O",
+    "H2O2",
+    "CH4",
+    "CH2O",
+    "HCN",
+    "O3",
+    "CO2",
     # larger molecules
-    "N2H2", "N2H4", "C2H2", "C2H4", "C2H6",
+    "N2H2",
+    "N2H4",
+    "C2H2",
+    "C2H4",
+    "C2H6",
 ]
 
 DEFAULT_BASIS = "STO-3G"
 
 
-# ---------------------------------------------------------------------------
 # Dynamic bond length discovery
-# ---------------------------------------------------------------------------
+
 
 def get_available_bondlengths(molname, basis, qml):
     """
@@ -106,7 +128,7 @@ def pick_geometries(bondlengths):
     PennyLane marks by embedding a non-round number in an otherwise round scan
     (e.g. 0.742 amid 0.5, 0.54, 0.58...). We detect this as the value whose
     distance to the nearest round-step neighbour is smallest *and* whose decimal
-    representation is non-trivially long — or simply the median if all values
+    representation is non-trivially long, or simply the median if all values
     look round.
     """
     if not bondlengths:
@@ -138,16 +160,17 @@ def pick_geometries(bondlengths):
     return geometries
 
 
-# ---------------------------------------------------------------------------
 # Pauli string helpers
-# ---------------------------------------------------------------------------
 
-# Maps PennyLane single-qubit Pauli class/name to letter
 _PAULI_NAMES = {
-    "PauliX": "X", "X": "X",
-    "PauliY": "Y", "Y": "Y",
-    "PauliZ": "Z", "Z": "Z",
-    "Identity": "I", "I": "I",
+    "PauliX": "X",
+    "X": "X",
+    "PauliY": "Y",
+    "Y": "Y",
+    "PauliZ": "Z",
+    "Z": "Z",
+    "Identity": "I",
+    "I": "I",
 }
 
 
@@ -159,11 +182,9 @@ def _op_to_label(op, n_qubits):
     label = ["I"] * n_qubits
     cls = type(op).__name__
 
-    # Scaled product — unwrap to the base operator
     if cls == "SProd" or (hasattr(op, "scalar") and hasattr(op, "base")):
         return _op_to_label(op.base, n_qubits)
 
-    # Tensor product (Prod) — recurse into each factor
     if cls == "Prod" or (hasattr(op, "operands") and not hasattr(op, "coeffs")):
         for factor in op.operands:
             sub = _op_to_label(factor, n_qubits)
@@ -172,7 +193,6 @@ def _op_to_label(op, n_qubits):
                     label[i] = ch
         return "".join(label)
 
-    # Single-qubit Pauli or Identity
     op_name = getattr(op, "name", cls)
     letter = _PAULI_NAMES.get(op_name, "I")
     wires = list(op.wires) if hasattr(op, "wires") else []
@@ -188,18 +208,18 @@ def hamiltonian_to_pauli_terms(hamiltonian, n_qubits, qml):
     Extract list of [pauli_string, coefficient] from any PennyLane Hamiltonian.
 
     Strategy (in order):
-      1. Legacy .coeffs/.ops  — qml.Hamiltonian (fast, no matrix needed)
-      2. Modern Sum of SProd  — LinearCombination / Sum (fast, no matrix needed)
-      3. qml.pauli_decompose  — last resort via full matrix (slow, small molecules only)
+      1. Legacy .coeffs/.ops  : qml.Hamiltonian (fast, no matrix needed)
+      2. Modern Sum of SProd  : LinearCombination / Sum (fast, no matrix needed)
+      3. qml.pauli_decompose  : last resort via full matrix (slow, small molecules only)
     """
-    # --- Strategy 1: legacy qml.Hamiltonian ---
+    # Strategy 1: legacy qml.Hamiltonian
     if hasattr(hamiltonian, "coeffs") and hasattr(hamiltonian, "ops"):
         return [
             [_op_to_label(op, n_qubits), float(coeff)]
-            for coeff, op in zip(hamiltonian.coeffs, hamiltonian.ops)
+            for coeff, op in zip(hamiltonian.coeffs, hamiltonian.ops, strict=False)
         ]
 
-    # --- Strategy 2: modern Sum of SProd ---
+    # Strategy 2: modern Sum of SProd
     if hasattr(hamiltonian, "operands"):
         terms = []
         for summand in hamiltonian.operands:
@@ -210,15 +230,14 @@ def hamiltonian_to_pauli_terms(hamiltonian, n_qubits, qml):
             terms.append([_op_to_label(op, n_qubits), coeff])
         return terms
 
-    # --- Strategy 3: last resort — full matrix decomposition (exponential cost) ---
+    # Strategy 3: last resort, full matrix decomposition (exponential cost)
     try:
-        import numpy as np
         wire_order = list(range(n_qubits))
         mat = qml.matrix(hamiltonian, wire_order=wire_order)
         pl_terms = qml.pauli_decompose(mat, wire_order=wire_order)
         return [
             [_op_to_label(op, n_qubits), float(coeff)]
-            for coeff, op in zip(pl_terms.coeffs, pl_terms.ops)
+            for coeff, op in zip(pl_terms.coeffs, pl_terms.ops, strict=False)
         ]
     except Exception:
         pass
@@ -226,9 +245,8 @@ def hamiltonian_to_pauli_terms(hamiltonian, n_qubits, qml):
     raise ValueError(f"Cannot parse Hamiltonian of type {type(hamiltonian)}")
 
 
-# ---------------------------------------------------------------------------
 # Core fetch
-# ---------------------------------------------------------------------------
+
 
 def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbose, qml):
     """Download one molecule/bondlength and save to JSON. Returns True on success."""
@@ -254,7 +272,6 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
 
     data = datasets[0]
 
-    # number of qubits
     try:
         n_qubits = len(data.hamiltonian.wires)
     except Exception:
@@ -267,14 +284,12 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
         print(f"  [ERROR] Cannot determine n_qubits for {molname}")
         return False
 
-    # Pauli terms
     try:
         pauli_terms = hamiltonian_to_pauli_terms(data.hamiltonian, n_qubits, qml)
     except Exception as e:
         print(f"  [ERROR] Failed to extract Pauli terms: {e}")
         return False
 
-    # energies
     fci_energy = None
     hf_energy = None
     try:
@@ -290,24 +305,40 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
     if fci_energy is None:
         try:
             import numpy as np
-            eigvals = np.linalg.eigvalsh(
-                qml.matrix(data.hamiltonian, wire_order=range(n_qubits))
-            )
+
+            eigvals = np.linalg.eigvalsh(qml.matrix(data.hamiltonian, wire_order=range(n_qubits)))
             fci_energy = float(eigvals.min())
             if verbose:
                 print(f"  Computed FCI energy via diagonalization: {fci_energy:.8f}")
         except Exception as e:
             print(f"  [WARN] Could not compute FCI energy: {e}")
 
+    # Exact FCI ground state as a determinant expansion (for the Cerezo local
+    # cost and fidelity). The '1.0' key holds the full state as coeffs and
+    # occupation-bitstring determinants. Cached so downstream needs no live fetch.
+    gs_dets = None
+    gs_coeffs = None
+    try:
+        dets = data.initial_state_dets["1.0"]
+        coeffs = data.initial_state_coeffs["1.0"]
+        gs_dets = [[int(b) for b in row] for row in dets]
+        gs_coeffs = [float(c) for c in coeffs]
+    except Exception as e:
+        if verbose:
+            print(f"  [WARN] No cached FCI ground state for {molname}: {e}")
+
     result = {
-        "molecule":    molname,
-        "geometry":    geometry_label,
-        "basis":       basis,
-        "bondlength":  bondlength,
-        "n_qubits":    n_qubits,
-        "fci_energy":  fci_energy,
-        "hf_energy":   hf_energy,
+        "molecule": molname,
+        "geometry": geometry_label,
+        "basis": basis,
+        "bondlength": bondlength,
+        "n_qubits": n_qubits,
+        "fci_energy": fci_energy,
+        "hf_energy": hf_energy,
         "pauli_terms": pauli_terms,
+        # FCI ground state (determinant expansion). May be null if unavailable.
+        "gs_dets": gs_dets,
+        "gs_coeffs": gs_coeffs,
     }
 
     os.makedirs(output_dir, exist_ok=True)
@@ -315,14 +346,15 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
         json.dump(result, f, indent=2)
 
     if verbose:
-        print(f"  Saved {out_path}  ({n_qubits} qubits, {len(pauli_terms)} Pauli terms, "
-              f"FCI={fci_energy:.6f})")
+        print(
+            f"  Saved {out_path}  ({n_qubits} qubits, {len(pauli_terms)} Pauli terms, "
+            f"FCI={fci_energy:.6f})"
+        )
     return True
 
 
-# ---------------------------------------------------------------------------
 # List helper
-# ---------------------------------------------------------------------------
+
 
 def list_molecules(basis, qml):
     """Print all available molecules and their bond lengths from the live registry."""
@@ -332,33 +364,35 @@ def list_molecules(basis, qml):
     for mol in ALL_MOLECULES:
         actual_basis, bls = get_available_bondlengths(mol, basis, qml)
         if bls:
-            note = f" (fallback)" if actual_basis != basis else ""
-            print(f"  {mol:<10} {actual_basis:<10} {len(bls):<18} {bls[0]} – {bls[-1]}{note}")
+            note = " (fallback)" if actual_basis != basis else ""
+            print(f"  {mol:<10} {actual_basis:<10} {len(bls):<18} {bls[0]} to {bls[-1]}{note}")
         else:
             print(f"  {mol:<10} {'(not found)'}")
 
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
+
 
 def main():
     parser = argparse.ArgumentParser(
         description="Fetch molecular Hamiltonians from PennyLane Datasets → JSON cache"
     )
     parser.add_argument(
-        "--molecules", "-m",
+        "--molecules",
+        "-m",
         nargs="+",
         default=ALL_MOLECULES,
         help="Molecules to fetch (default: all)",
     )
     parser.add_argument(
-        "--output", "-o",
+        "--output",
+        "-o",
         default="data",
         help="Output directory (default: data)",
     )
     parser.add_argument(
-        "--basis", "-b",
+        "--basis",
+        "-b",
         default=DEFAULT_BASIS,
         help=f"Basis set (default: {DEFAULT_BASIS})",
     )
@@ -368,18 +402,21 @@ def main():
         help="Fetch every available bond length instead of just equilibrium/stretched/compressed",
     )
     parser.add_argument(
-        "--list", "-l",
+        "--list",
+        "-l",
         action="store_true",
         help="List available molecules and bond lengths, then exit",
     )
     parser.add_argument(
-        "--skip", "-s",
+        "--skip",
+        "-s",
         nargs="+",
         default=[],
         help="Molecules to skip (e.g. --skip H7 H8 H10 for large files)",
     )
     parser.add_argument(
-        "--quiet", "-q",
+        "--quiet",
+        "-q",
         action="store_true",
         help="Suppress verbose output",
     )
@@ -387,6 +424,7 @@ def main():
 
     try:
         import pennylane as qml
+
         print(f"PennyLane version: {qml.__version__}")
     except ImportError:
         print("ERROR: PennyLane not installed. Run: pip install pennylane")
@@ -426,7 +464,6 @@ def main():
             print(f"Molecule: {molname}")
             print(f"{'='*60}")
 
-        # Discover bond lengths from the live registry (auto-fallback basis)
         actual_basis, bondlengths = get_available_bondlengths(molname, args.basis, qml)
 
         if not bondlengths:
@@ -443,9 +480,10 @@ def main():
             geometries = pick_geometries(bondlengths)
 
         if verbose:
-            print(f"  Available bond lengths ({len(bondlengths)}): {bondlengths[0]} – {bondlengths[-1]}")
-            print(f"  Fetching {len(geometries)} geometries: "
-                  f"{[g[0] for g in geometries]}")
+            print(
+                f"  Available bond lengths ({len(bondlengths)}): {bondlengths[0]} to {bondlengths[-1]}"
+            )
+            print(f"  Fetching {len(geometries)} geometries: " f"{[g[0] for g in geometries]}")
 
         for geometry_label, bondlength in geometries:
             ok = fetch_molecule(
