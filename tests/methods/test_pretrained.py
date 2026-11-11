@@ -11,12 +11,48 @@ noted but not pinned.
 Run with: pytest tests/methods/test_pretrained.py
 """
 
+import importlib
+
 import numpy as np
 import pytest
 
 from src.core.ansatze import MPS
+from src.core.backend import build_optimizer
 from src.core.methods import MethodConfig, pretrained
 from src.utils.helpers import statevector
+
+# The module, not the function of the same name.
+pretrained_module = importlib.import_module("src.core.methods.pretrained")
+
+
+@pytest.mark.parametrize(
+    "optimizer, kwargs",
+    [("adam", {}), ("adagrad", {}), ("qng", {}), ("adam", {"stepsize": 0.05})],
+)
+def test_full_stage_stepsize_is_a_fifth_of_the_pretraining(
+    four_qubit_system, monkeypatch, optimizer, kwargs
+):
+    """The full stage runs at a fifth of the stepsize the pretraining used.
+
+    Pins the stage-2 reduction against each optimizer's own default and against
+    an explicit stepsize, so a change to an optimizer default cannot silently
+    leave the full stage at the base stepsize (as happened when Adam's default
+    went from 0.1 to 0.02 while the fallback here stayed at 0.1).
+    """
+    built = []
+
+    def recording_build(name, seed=None, **kw):
+        opt = build_optimizer(name, seed=seed, **kw)
+        built.append(opt)
+        return opt
+
+    monkeypatch.setattr(pretrained_module, "build_optimizer", recording_build)
+    cfg = MethodConfig(
+        depth=1, optimizer=optimizer, max_iters=1, warm_iters=1, seed=0, optimizer_kwargs=kwargs
+    )
+    pretrained(four_qubit_system, cfg)
+    stage1, stage2 = built
+    assert stage2.stepsize == pytest.approx(0.2 * stage1.stepsize)
 
 
 def test_zero_padded_transfer_reproduces_diagonal_state():

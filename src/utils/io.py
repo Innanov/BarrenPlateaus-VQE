@@ -100,9 +100,6 @@ def load_convergence(path: str) -> dict:
     for opt, methods in acc.items():
         results = []
         for m, d in methods.items():
-            # Two-stage methods carry a stage boundary. Drop the warm-up (keep the
-            # main stage from the boundary on) so the curve matches qubap, with no
-            # handoff jump.
             start = min(d["b"]) if d["b"] else 0
             xs = [i for i in sorted(d["e"]) if i >= start]
             hist = [d["e"][i] for i in xs]

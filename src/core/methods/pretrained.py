@@ -35,7 +35,8 @@ def pretrained(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     The MPS pre-training runs warm_iters as extra preparation, then the full stage
     runs the full max_iters, so every method's main stage has the same length (the
     warm-up is on top, not carved out of max_iters). The full stage refines with a
-    reduced stepsize (a fifth of the base), because the transfer already lands a
+    reduced stepsize, a fifth of the one stage 1 used (the optimizer's default
+    unless optimizer_kwargs sets one), because the transfer already lands a
     near-optimal state that a full-stepsize first step would overshoot and disrupt.
     This mirrors qubap continuing its decayed optimizer schedule into the full
     stage rather than restarting at full step size.
@@ -65,7 +66,7 @@ def pretrained(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     full_params = pnp.array(init, requires_grad=True)
     cost_full = _make_cost(full, system.hamiltonian, n)
     stage2_kwargs = dict(config.optimizer_kwargs)
-    stage2_kwargs["stepsize"] = 0.2 * config.optimizer_kwargs.get("stepsize", 0.1)
+    stage2_kwargs["stepsize"] = 0.2 * opt.stepsize
     if config.optimizer.lower() == "qng":
         stage2_kwargs.setdefault("approx", "diag")
     opt2 = build_optimizer(config.optimizer, seed=config.seed + 1, **stage2_kwargs)
