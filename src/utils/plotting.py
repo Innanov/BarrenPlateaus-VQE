@@ -98,8 +98,13 @@ def plot_convergence(
         ax.set_xlabel("iteration")
         ax.set_ylabel("energy (Ha)")
         ax.set_title(title or "VQE convergence")
+        # Legend below the axes (under the x-label), clear of the title on top.
         ax.legend(
-            loc="lower center", bbox_to_anchor=(0.5, 1.02), ncol=3, frameon=False, borderaxespad=0.0
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.18),
+            ncol=3,
+            frameon=False,
+            borderaxespad=0.0,
         )
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
@@ -351,6 +356,99 @@ def plot_landscape_contour(landscape, path: str, title: str | None = None) -> st
                 bbox_to_anchor=(0.5, 0.0),
             )
         fig.savefig(path)
+        plt.close(fig)
+    return path
+
+
+def plot_shared_landscape(shared, path: str, title: str | None = None) -> str:
+    """Plot one shared PCA landscape with every method's endpoint and path.
+
+    Unlike plot_landscape_contour (a per-method slice), this shows several methods
+    on ONE plane, so methods that converged to different minima appear in different
+    basins. Each endpoint is a labelled marker and each trajectory a faint line
+    into it.
+
+    Args:
+        shared: A core.analysis.landscape_shared.SharedLandscape.
+        path: Destination figure path (.pdf).
+        title: Optional title.
+
+    Returns:
+        The written path.
+    """
+    with plt.rc_context(IEEE_STYLE):
+        fig, ax = plt.subplots(figsize=_FIGSIZE)
+        cs = ax.contourf(shared.a_grid, shared.b_grid, shared.energies, levels=40, cmap="viridis")
+        fig.colorbar(cs, ax=ax, label="energy (Ha)")
+        if shared.fci_energy is not None:
+            lo, hi = shared.energies.min(), shared.energies.max()
+            if lo <= shared.fci_energy <= hi:
+                ax.contour(
+                    shared.a_grid,
+                    shared.b_grid,
+                    shared.energies,
+                    levels=[shared.fci_energy],
+                    colors="white",
+                    linewidths=0.8,
+                    linestyles="--",
+                )
+        labels = list(shared.endpoints)
+        cmap = plt.get_cmap("tab10")
+        colors = {m: cmap(i % 10) for i, m in enumerate(labels)}
+        for m in labels:
+            if m in shared.paths:
+                p = shared.paths[m]
+                ax.plot(p[:, 0], p[:, 1], color=colors[m], lw=0.7, alpha=0.5)
+            a, b = shared.endpoints[m]
+            ax.plot(a, b, "o", color=colors[m], markersize=5, markeredgecolor="black", label=m)
+        ax.set_xlabel("PCA 1")
+        ax.set_ylabel("PCA 2")
+        ax.set_title(title or "Shared convergence landscape")
+        fig.subplots_adjust(bottom=0.28)
+        fig.legend(
+            loc="lower center",
+            ncol=len(labels),
+            frameon=False,
+            fontsize=6,
+            columnspacing=1.0,
+            handlelength=1.2,
+            bbox_to_anchor=(0.5, 0.0),
+        )
+        fig.savefig(path)
+        plt.close(fig)
+    return path
+
+
+def plot_interpolation_barriers(curves, path: str, title: str | None = None) -> str:
+    """Plot energy along straight lines between parameter points (barrier view).
+
+    Each curve is the energy sampled from one parameter vector to another. A hump
+    is an energy barrier separating two minima; a monotone descent means the two
+    ends share a basin.
+
+    Args:
+        curves: Iterable of (label, alphas, energies) tuples.
+        path: Destination figure path (.pdf).
+        title: Optional title.
+
+    Returns:
+        The written path.
+    """
+    with plt.rc_context(IEEE_STYLE):
+        fig, ax = plt.subplots(figsize=_FIGSIZE)
+        for label, alphas, energies in curves:
+            ax.plot(alphas, energies, lw=1.2, label=label)
+        ax.set_xlabel("interpolation (alpha)")
+        ax.set_ylabel("energy (Ha)")
+        ax.set_title(title or "Energy barriers between minima")
+        ax.legend(
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.18),
+            ncol=2,
+            frameon=False,
+            borderaxespad=0.0,
+        )
+        fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
     return path
 
