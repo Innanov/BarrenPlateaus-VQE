@@ -15,13 +15,12 @@ Each JSON contains:
       "basis":       "STO-3G",
       "bondlength":  0.742,
       "n_qubits":    4,
+      "electrons":   2,                  (for the Hartree-Fock reference state)
       "fci_energy":  -1.1361894540879054,
       "hf_energy":   -1.117...,          (if available)
-      "pauli_terms": [
-          ["IIII", 0.2345],
-          ["ZZII", -0.4567],
-          ...
-      ]
+      "pauli_terms": [["IIII", 0.2345], ["ZZII", -0.4567], ...],
+      "gs_dets":     [[0, 0, 1, 1], ...],   (FCI ground state, if available)
+      "gs_coeffs":   [0.99..., ...]
     }
 
 Usage:
@@ -30,8 +29,11 @@ Usage:
     python scripts/fetch_hamiltonians.py --all-bondlengths --molecules H2
     python scripts/fetch_hamiltonians.py --list
 
-Bond lengths are discovered dynamically via qml.data.list_datasets() at runtime,
-so the script always reflects what PennyLane actually has available.
+Which bond lengths are fetched: the script reads PennyLane's dataset registry and
+looks up the qchem entry for each molecule to get its available bond lengths.
+By default it picks three geometries from them, equilibrium,
+stretched, and compressed, or just the one if only a single bond length exists.
+Pass --all-bondlengths to fetch every one.
 
 Requirements:
     pip install pennylane pennylane-datasets
@@ -292,12 +294,17 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
 
     fci_energy = None
     hf_energy = None
+    electrons = None
     try:
         fci_energy = float(data.fci_energy)
     except Exception:
         pass
     try:
         hf_energy = float(data.hf_energy)
+    except Exception:
+        pass
+    try:
+        electrons = int(data.molecule.n_electrons)
     except Exception:
         pass
 
@@ -313,9 +320,7 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
         except Exception as e:
             print(f"  [WARN] Could not compute FCI energy: {e}")
 
-    # Exact FCI ground state as a determinant expansion (for the Cerezo local
-    # cost and fidelity). The '1.0' key holds the full state as coeffs and
-    # occupation-bitstring determinants. Cached so downstream needs no live fetch.
+    # Exact FCI ground state as a determinant expansion, cached for fidelity.
     gs_dets = None
     gs_coeffs = None
     try:
@@ -333,6 +338,7 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
         "basis": basis,
         "bondlength": bondlength,
         "n_qubits": n_qubits,
+        "electrons": electrons,
         "fci_energy": fci_energy,
         "hf_energy": hf_energy,
         "pauli_terms": pauli_terms,

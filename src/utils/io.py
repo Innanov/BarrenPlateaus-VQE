@@ -1,7 +1,8 @@
 """Output directory management and CSV/JSON writers.
 
 Results are written under results/<molecule>/<analysis_type>/<timestamp>/ (CSVs,
-JSON summaries, run parameters, plus PDFs written by plots). Every
+JSON summaries, run parameters, plus PDFs written by plots). Seeded VQE runs go
+under results/<molecule>/vqe_seeds/<run_name>/seed_<seed>/ instead. Every
 run_parameters.json records the data-source path for provenance.
 """
 
@@ -14,11 +15,10 @@ import os
 from dataclasses import asdict, is_dataclass
 from types import SimpleNamespace
 
-import numpy as np
-
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.normpath(os.path.join(_THIS_DIR, "..", ".."))
 RESULTS_ROOT = os.path.join(REPO_ROOT, "results")
+SEEDS_ANALYSIS = "vqe_seeds"
 
 
 def make_output_dir(molecule: str, analysis_type: str, timestamp: str) -> str:
@@ -135,6 +135,19 @@ def system_info(run_dir: str):
         return None, None
 
 
+def main_iters(run_dir: str) -> int | None:
+    """Return the run's main-stage iteration budget (--iters), or None if unknown.
+
+    Args:
+        run_dir: The run directory holding run_parameters.json.
+    """
+    try:
+        with open(os.path.join(run_dir, "run_parameters.json"), encoding="utf-8") as fh:
+            return int(json.load(fh)["iters"])
+    except (OSError, KeyError, ValueError):
+        return None
+
+
 def _ensure_parent(path: str) -> None:
     """Create the parent directory of path if it does not exist."""
     parent = os.path.dirname(os.path.abspath(path))
@@ -221,123 +234,98 @@ def write_convergence_csv(path: str, results_by_opt) -> str:
     return path
 
 
-def save_landscape_npz(path: str, landscape) -> str:
-    """Save a landscape's grid and trajectories to a compact .npz.
+def seed_run_dir(molecule: str, run_name: str, seed: int) -> str:
+    """Create and return results/<molecule>/vqe_seeds/<run_name>/seed_<seed>/.
 
-    Stored as named numpy arrays so the surface and contour figures can be
-    rebuilt without re-sampling the expensive grid.
+    All seeds of one setting share the run_name folder, so the aggregate step can
+    find them together.
 
     Args:
-        path: Destination .npz path.
-        landscape: A core.landscape.Landscape instance.
+        molecule: Molecule name.
+        run_name: Name of the setting shared by the seeds (see
+            scripts/compute_vqe_analysis.py).
+        seed: The run's seed.
 
     Returns:
-        The written path.
+        The absolute path of the created directory.
     """
-    arrays = {
-        "a_grid": np.asarray(landscape.a_grid),
-        "b_grid": np.asarray(landscape.b_grid),
-        "energies": np.asarray(landscape.energies),
-        "span": np.asarray(landscape.span, dtype=float),
-        "param_indices": np.asarray(getattr(landscape, "param_indices", ()), dtype=int),
-        "axis_labels": np.asarray(getattr(landscape, "axis_labels", ()), dtype=object),
-    }
-    labels = []
-    for i, tr in enumerate(getattr(landscape, "trajectories", None) or []):
-        labels.append(tr.label)
-        arrays[f"traj{i}_ab"] = np.asarray(tr.ab)
-        arrays[f"traj{i}_true_energy"] = np.asarray(tr.true_energy)
-        arrays[f"traj{i}_surface_energy"] = np.asarray(tr.surface_energy)
-    arrays["traj_labels"] = np.asarray(labels, dtype=object)
-    _ensure_parent(path)
-    np.savez_compressed(path, **arrays)
-    return path
+    return make_output_dir(molecule, os.path.join(SEEDS_ANALYSIS, run_name), f"seed_{seed}")
 
 
-def load_landscape_npz(path: str):
-    """Load a landscape saved by save_landscape_npz.
+def resolve_seeds_dir(run_dir: str | None, molecule: str | None, run_name: str | None) -> str:
+    """Resolve a results/<molecule>/vqe_seeds/<run_name>/ folder.
 
-    Rebuilds a core.landscape.Landscape from the saved arrays so figures can be
-    regenerated from disk.
+    Args:
+        run_dir: An explicit folder, returned as-is when given.
+        molecule: The molecule to look under, when run_dir is None.
+        run_name: The run name. May be None when the molecule has only one.
+
+    Returns:
+        The folder path.
+
+    Raises:
+        SystemExit: If the folder cannot be determined.
     """
-    # Imported here to avoid a core<-utils import cycle at module load.
-    from src.core.analysis import Landscape, TrajectoryProjection
+    if run_dir:
+        return run_dir
+    if not molecule:
+        raise SystemExit("Provide --dir, or --molecule (and --run-name).")
+    root = os.path.join(RESULTS_ROOT, molecule, SEEDS_ANALYSIS)
+    if run_name:
+        return os.path.join(root, run_name)
+    names = sorted(d for d in glob.glob(os.path.join(root, "*")) if os.path.isdir(d))
+    if len(names) != 1:
+        raise SystemExit(f"Pick one with --run-name: {[os.path.basename(n) for n in names]}")
+    return names[0]
 
-    data = np.load(path, allow_pickle=True)
-    labels = list(data["traj_labels"]) if "traj_labels" in data else []
-    trajectories = []
-    for i, label in enumerate(labels):
-        trajectories.append(
-            TrajectoryProjection(
-                label=str(label),
-                ab=data[f"traj{i}_ab"],
-                true_energy=data[f"traj{i}_true_energy"],
-                surface_energy=data[f"traj{i}_surface_energy"],
+
+def find_seed_dirs(run_dir: str) -> dict[int, str]:
+    """Return {seed: seed_<seed> folder} for the seed runs under run_dir, by seed.
+
+    Args:
+        run_dir: A results/<molecule>/vqe_seeds/<run_name>/ folder.
+
+    Returns:
+        The seed folders that hold a performance table, sorted by seed.
+    """
+    found = {}
+    for d in glob.glob(os.path.join(run_dir, "seed_*")):
+        tail = os.path.basename(d)[len("seed_") :]
+        if tail.isdigit() and os.path.isfile(os.path.join(d, "performance_table_all_methods.csv")):
+            found[int(tail)] = d
+    return dict(sorted(found.items()))
+
+
+def load_convergence_mean_std(path: str) -> dict:
+    """Load convergence_mean_std.csv into {optimizer: [plot-ready result, ...]}.
+
+    Args:
+        path: Path to convergence_mean_std.csv (written by
+            scripts/aggregate_vqe_seeds.py).
+
+    Returns:
+        A mapping {optimizer: [SimpleNamespace(method, energy_history,
+        energy_std, stage_boundaries), ...]} where energy_history is the mean
+        over seeds, so the convergence plot functions draw it like a single run
+        and shade mean +- energy_std.
+    """
+    acc = {}
+    with open(path, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            d = acc.setdefault(row["optimizer"], {}).setdefault(row["method"], {})
+            d[int(row["iteration"])] = (float(row["energy_mean"]), float(row["energy_std"]))
+    results_by_opt = {}
+    for opt, methods in acc.items():
+        results_by_opt[opt] = [
+            SimpleNamespace(
+                method=m,
+                energy_history=[d[i][0] for i in sorted(d)],
+                energy_std=[d[i][1] for i in sorted(d)],
+                stage_boundaries=[],
             )
-        )
-    span = data["span"]
-    span = (
-        tuple(float(s) for s in np.asarray(span).reshape(-1))
-        if np.size(span) == 2
-        else float(np.asarray(span).reshape(-1)[0])
-    )
-    pidx = tuple(int(i) for i in data["param_indices"]) if "param_indices" in data else ()
-    labels = tuple(str(lbl) for lbl in data["axis_labels"]) if "axis_labels" in data else ()
-    return Landscape(
-        a_grid=data["a_grid"],
-        b_grid=data["b_grid"],
-        energies=data["energies"],
-        center=None,
-        param_indices=pidx,
-        axis_labels=labels,
-        trajectories=trajectories,
-        span=span,
-    )
-
-
-def save_optimization_npz(path: str, method, final_params, param_histories) -> str:
-    """Persist a method's optimizer paths so landscapes can be rebuilt later.
-
-    Sampling a landscape needs only the converged parameters (the slice centre)
-    and each optimizer's trajectory, so saving those lets the plot step build
-    landscapes without re-running the VQE.
-
-    Args:
-        path: Destination .npz path (per method).
-        method: Method name.
-        final_params: The reference (landscape-centre) parameter vector.
-        param_histories: {optimizer: [param_vector, ...]} for the method.
-
-    Returns:
-        The written path.
-    """
-    arrays = {
-        "method": np.asarray(str(method)),
-        "final_params": np.asarray(final_params, dtype=float),
-        "optimizers": np.asarray(list(param_histories.keys()), dtype=object),
-    }
-    for opt, hist in param_histories.items():
-        arrays[f"hist_{opt}"] = np.asarray(hist, dtype=float)
-    _ensure_parent(path)
-    np.savez_compressed(path, **arrays)
-    return path
-
-
-def load_optimization_npz(path: str):
-    """Load optimizer paths saved by save_optimization_npz.
-
-    Args:
-        path: Path to the .npz file.
-
-    Returns:
-        A (method, final_params, {optimizer: history}) tuple.
-    """
-    data = np.load(path, allow_pickle=True)
-    method = str(data["method"])
-    final_params = data["final_params"]
-    opts = list(data["optimizers"])
-    histories = {str(o): data[f"hist_{o}"] for o in opts}
-    return method, final_params, histories
+            for m, d in methods.items()
+        ]
+    return results_by_opt
 
 
 def write_json(path: str, obj) -> str:

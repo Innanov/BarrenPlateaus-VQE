@@ -15,11 +15,24 @@ import pennylane as qml
 import pytest
 
 from src.core.methods import MethodConfig, adiabatic
-from src.core.methods.adiabatic import _interpolate
+from src.core.methods.adiabatic import _interpolate, hf_reference_hamiltonian
 
 
 def _matrix(hamiltonian, n):
     return qml.matrix(hamiltonian, wire_order=range(n))
+
+
+def test_hf_reference_hamiltonian_ground_state_is_hf_determinant(four_qubit_system):
+    """H_0's non-degenerate ground state is the HF occupation basis state, so the
+    anneal starts from an easy-to-prepare reference and not the exact ground state.
+    """
+    n = four_qubit_system.n_qubits
+    h0 = hf_reference_hamiltonian(four_qubit_system.hf_occupation)
+    eigvals, eigvecs = np.linalg.eigh(_matrix(h0, n))
+    gs = eigvecs[:, 0]
+    overlap = abs(np.vdot(four_qubit_system.hf_state, gs))
+    assert overlap == pytest.approx(1.0, abs=1e-9)
+    assert eigvals[1] - eigvals[0] > 1e-6  # non-degenerate ground state
 
 
 def test_interpolate_endpoints_match_qubap_ramp():

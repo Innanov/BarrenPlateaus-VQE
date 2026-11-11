@@ -53,7 +53,7 @@ class Adam(Optimizer):
         eps: Numerical stabilizer.
     """
 
-    def __init__(self, stepsize=0.1, beta1=0.9, beta2=0.999, eps=1e-8):
+    def __init__(self, stepsize=0.02, beta1=0.9, beta2=0.999, eps=1e-8):
         self.stepsize = stepsize
         self.beta1 = beta1
         self.beta2 = beta2

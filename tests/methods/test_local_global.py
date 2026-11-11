@@ -1,10 +1,10 @@
 """Tests for the local_global warm-start VQE.
 
 This method generalizes qubap's VQE_shift (a two-stage local->global warm start),
-with one deliberate improvement: the local cost is the ground-state Cerezo
+with one deliberate improvement: the local cost is the Hartree-Fock Cerezo
 observable (local_cost_observable), not qubap's global2local Pauli-splitting. So
 these tests pin OUR structure and the improvement claim, not a qubap parity: the
-local cost is minimized at the true ground state (which global2local is not), and
+local cost is minimized at the HF product state (which global2local is not), and
 the two-stage bookkeeping (stage boundary, warm-start continuity, continuous
 global curve) is correct.
 
@@ -21,29 +21,28 @@ from src.utils.helpers import expectation, statevector
 
 
 def test_local_cost_is_a_valid_hamiltonian(two_qubit_system):
-    o_l = local_cost_observable(two_qubit_system.ground_state, two_qubit_system.n_qubits)
+    o_l = local_cost_observable(two_qubit_system.hf_state, two_qubit_system.n_qubits)
     assert isinstance(o_l, qml.Hamiltonian)
 
 
-def test_local_cost_minimized_at_ground_state(two_qubit_system):
-    """The load-bearing improvement over qubap: the ground-state Cerezo cost is
-    minimized at the exact ground state, well below a random state's value.
-    global2local (which qubap uses) lacks this property.
-
-    We compare against a random state rather than against 0, because O_L reaches
-    exactly 0 only for a product ground state. An entangled ground state has mixed
-    single-qubit marginals and so a small positive floor.
+def test_local_cost_minimized_at_hf_state(two_qubit_system):
+    """The load-bearing improvement over qubap: the HF Cerezo cost is minimized at
+    the HF product state, and reaches exactly 0 there (a product state is the
+    unique minimizer of the marginal-matching cost). global2local, which qubap
+    uses, lacks this property. We check it is 0 at HF and strictly higher at a
+    random state.
     """
     n = two_qubit_system.n_qubits
-    o_l = local_cost_observable(two_qubit_system.ground_state, n)
-    gs_value = expectation(o_l, two_qubit_system.ground_state, n)
+    o_l = local_cost_observable(two_qubit_system.hf_state, n)
+    hf_value = expectation(o_l, two_qubit_system.hf_state, n)
 
     rng = np.random.default_rng(0)
     random_state = rng.normal(size=2**n) + 1j * rng.normal(size=2**n)
     random_state /= np.linalg.norm(random_state)
     random_value = expectation(o_l, random_state, n)
 
-    assert gs_value < random_value
+    assert hf_value == pytest.approx(0.0, abs=1e-9)
+    assert hf_value < random_value
 
 
 def test_two_stage_bookkeeping(two_qubit_system):

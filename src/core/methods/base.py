@@ -58,7 +58,7 @@ class MethodResult:
 
     Carries the final energy, parameters, and ansatz (for metrics like energy
     error and fidelity) and the per-iteration energy and parameter histories (for
-    convergence curves and landscape overlays).
+    convergence curves).
 
     Attributes:
         method: Method name.
@@ -71,7 +71,7 @@ class MethodResult:
         stage_boundaries: Iteration indices where a new stage begins (for plots
             and per-stage reporting).
         param_history: Parameter vectors along the final stage's trajectory (in
-            the reported ansatz's parameter space), for landscape overlays.
+            the reported ansatz's parameter space).
             Multi-stage methods record only the final stage, since earlier stages
             use a different space.
         energy_history_global: Per-iteration energy vs the global (full)

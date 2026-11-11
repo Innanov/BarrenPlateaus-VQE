@@ -129,7 +129,8 @@ def ising_system(n_qubits):
 
     Constructs the MolecularSystem in code (fci fields unused) instead of loading a
     real molecule from the data/ cache, so tests are self-contained and fast. The
-    exact ground_state and ground_energy are solved on first access.
+    exact ground_state and ground_energy are solved on first access. electrons is
+    set to half filling so the HF-reference warm-starts have a valid anchor.
     """
     return MolecularSystem(
         molecule="test",
@@ -139,4 +140,5 @@ def ising_system(n_qubits):
         n_qubits=n_qubits,
         fci_energy=0.0,
         hamiltonian=ising_hamiltonian(n_qubits),
+        electrons=n_qubits // 2,
     )

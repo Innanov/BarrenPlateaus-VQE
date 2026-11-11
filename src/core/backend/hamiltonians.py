@@ -43,6 +43,7 @@ class MolecularSystem:
     n_qubits: int
     fci_energy: float
     hamiltonian: qml.Hamiltonian
+    electrons: int | None = None
     _ground_state: np.ndarray | None = None
     _ground_energy: float | None = None
 
@@ -52,6 +53,43 @@ class MolecularSystem:
         if self._ground_state is None:
             self._solve_ground()
         return self._ground_state
+
+    @property
+    def hf_occupation(self) -> np.ndarray:
+        """Hartree-Fock occupation vector: 1 on the lowest `electrons` qubits.
+
+        Under Jordan-Wigner the HF determinant occupies the lowest-energy
+        spin-orbitals, which are qubits 0..electrons-1. This is the easy-to-prepare
+        reference state (a single product state) used to anchor the adiabatic and
+        local_global warm-starts.
+        """
+        if self.electrons is None:
+            raise ValueError(
+                f"No electron count cached for {self.molecule}; re-run "
+                "scripts/fetch_hamiltonians.py to add the 'electrons' field."
+            )
+        occ = np.zeros(self.n_qubits, dtype=int)
+        occ[: self.electrons] = 1
+        return occ
+
+    @property
+    def hf_state(self) -> np.ndarray:
+        """Hartree-Fock reference as a length 2**n_qubits statevector.
+
+        The computational-basis product state |1...1 0...0> with the lowest
+        `electrons` qubits occupied. Being a single product state it is exactly
+        preparable (a layer of X gates), so it is a cheap
+        anchor for the warm-start and adiabatic schedules.
+        Qubit 0 is the most significant bit, matching the
+        ground_state ordering.
+        """
+        occ = self.hf_occupation
+        idx = 0
+        for bit in occ:
+            idx = (idx << 1) | int(bit)
+        vec = np.zeros(2**self.n_qubits, dtype=float)
+        vec[idx] = 1.0
+        return vec
 
     @property
     def ground_energy(self) -> float:
@@ -128,6 +166,7 @@ def load_hamiltonian(molecule: str, geometry: str = "equilibrium") -> MolecularS
         n_qubits=n_qubits,
         fci_energy=float(raw["fci_energy"]),
         hamiltonian=hamiltonian,
+        electrons=(int(raw["electrons"]) if raw.get("electrons") is not None else None),
         _ground_state=cached_gs,
     )
 

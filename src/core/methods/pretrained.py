@@ -5,8 +5,7 @@ tractable) ansatz, then transfer its parameters into the full ansatz by prefix
 zero-pad. The diagonal parameters occupy the same leading indices in both
 circuits, and a zero off-diagonal block is the identity, so the full stage starts
 exactly at the pretrained state. This is the MPS pre-training method of [2]. We
-transfer the final pretrained iterate, where qubap averages the last ten. The
-method is also optimizer-agnostic, where qubap is SPSA-only.
+transfer the final pretrained iterate, where qubap averages the last ten.
 
 References:
     [1] qubap, https://github.com/jgidi/quantum-barren-plateaus
