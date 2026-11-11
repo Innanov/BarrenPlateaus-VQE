@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
 """
-Compute step for the VQE analysis (no plotting).
+Compute step for the VQE analysis, one seed per call (no plotting).
 
-Runs the five VQE methods under each optimizer and saves all data needed to
-rebuild every figure. Render with plot_vqe_analysis.py.
+Runs the five VQE methods under each optimizer from the initial parameters drawn
+with --seed, and saves the data needed to rebuild the figures. Run it once per
+seed with the same other settings, then reduce the seeds with
+aggregate_vqe_seeds.py and plot with plot_vqe_seeds.py. plot_vqe_analysis.py
+plots a single seed.
 
-Output in results/<molecule>/vqe_analysis/<timestamp>/:
+Output in results/<molecule>/vqe_seeds/<run_name>/seed_<seed>/:
     performance_table_all_methods.csv   final energy/error/fidelity per method+optimizer
     convergence_history.csv             per-iteration energy (long format)
-    landscape_<method>.npz              grid + optimizer trajectories per method
-    run_parameters.json                 provenance (device, optimizers, seed, git commit)
+    run_parameters.json                 provenance (device, optimizers, seed, run_name)
+
+run_name defaults to the settings the seeds must share, for example
+adam_depth4_iters1000, so every seed of one setting lands in the same folder.
 
 Usage:
-    python scripts/compute_vqe_analysis.py --molecule H2 --iters 1000
-    python scripts/compute_vqe_analysis.py --molecule LiH --iters 1000 --no-landscape
+    python scripts/compute_vqe_analysis.py --molecule LiH --optimizers adam --seed 0
+    python scripts/compute_vqe_analysis.py --molecule LiH --optimizers adam --seed 1
 """
 
 from __future__ import annotations
@@ -24,12 +29,11 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.core.analysis import landscape, metrics  # noqa: E402
+from src.core.analysis import metrics  # noqa: E402
 from src.core.backend import active_backend  # noqa: E402
 from src.core.backend import load_hamiltonian, verify_against_fci  # noqa: E402
 from src.core.methods import METHODS, MethodConfig, run_method  # noqa: E402
 from src.utils import io  # noqa: E402
-from src.utils.helpers import timestamp  # noqa: E402
 from src.utils.progress import Progress  # noqa: E402
 
 
@@ -60,47 +64,56 @@ def parse_args(argv=None):
         choices=list(METHODS),
         help="Subset of methods to run.",
     )
-    p.add_argument("--seed", type=int, default=0, help="RNG seed.")
-    p.add_argument("--landscape-res", type=int, default=25, help="Landscape grid resolution.")
-    p.add_argument("--no-landscape", action="store_true", help="Skip landscape data.")
+    p.add_argument("--seed", type=int, default=0, help="RNG seed for the initial parameters.")
     p.add_argument(
-        "--tag",
+        "--run-name",
         default=None,
-        help="Optional label appended to the analysis-type folder, so "
-        "runs that differ only by that label land in distinct "
-        "directories.",
+        help="Folder shared by the seeds of one setting. Defaults to "
+        "<optimizers>_depth<d>_iters<n>, with the geometry in front when it is "
+        "not equilibrium and --tag at the end.",
     )
+    p.add_argument("--tag", default=None, help="Optional label appended to the default run name.")
     return p.parse_args(argv)
 
 
-def main(argv=None) -> int:
-    """Run the VQE analysis and save all plot-source data (no figures).
+def default_run_name(args) -> str:
+    """Name the folder that all seeds of this setting share."""
+    parts = []
+    if args.geometry != "equilibrium":
+        parts.append(args.geometry)
+    parts += ["-".join(args.optimizers), f"depth{args.depth}", f"iters{args.iters}"]
+    if args.tag:
+        parts.append(args.tag)
+    return "_".join(parts)
 
-    Runs every (optimizer, method) combination, then saves the performance table,
-    the per-iteration convergence histories, and (unless --no-landscape) the
-    optimizer paths and sampled loss landscapes per method, all under a fresh
-    timestamped results directory.
+
+def main(argv=None) -> int:
+    """Run the VQE analysis for one seed and save the tables (no figures).
+
+    Runs every (optimizer, method) combination, then saves the performance table
+    and the per-iteration convergence histories in the seed's folder.
 
     The progress clock's work-units are one per (optimizer x method) VQE run, plus
-    two for the table and history writes, plus one per-method landscape build.
+    two for the table and history writes.
     """
     args = parse_args(argv)
+    args.run_name = args.run_name or default_run_name(args)
     system = load_hamiltonian(args.molecule, args.geometry)
     if not verify_against_fci(system):
         raise RuntimeError(
             f"{args.molecule} ({args.geometry}) Hamiltonian does not match its FCI energy; refusing to run."
         )
 
-    analysis_type = "vqe_analysis" if not args.tag else f"vqe_analysis_{args.tag}"
-    out_dir = io.make_output_dir(args.molecule, analysis_type, timestamp())
+    out_dir = io.seed_run_dir(args.molecule, args.run_name, args.seed)
 
-    n_vqe = len(args.optimizers) * len(args.methods)
-    n_land = 0 if args.no_landscape else len(args.methods)
-    prog = Progress(total=n_vqe + 2 + n_land)
+    prog = Progress(total=len(args.optimizers) * len(args.methods) + 2)
     prog.note(
-        f"[{args.molecule}] n_qubits={system.n_qubits}  device={active_backend()}  "
-        f"optimizers={args.optimizers}  methods={args.methods}  -> {out_dir}"
+        f"[{args.molecule}] seed={args.seed}  n_qubits={system.n_qubits}  "
+        f"device={active_backend()}  optimizers={args.optimizers}  methods={args.methods}  "
+        f"-> {out_dir}"
     )
+    if os.path.isfile(os.path.join(out_dir, "performance_table_all_methods.csv")):
+        prog.note(f"seed_{args.seed} already exists in {args.run_name}, overwriting it.")
 
     results_by_opt = {}
     rows = []
@@ -143,36 +156,8 @@ def main(argv=None) -> int:
     io.write_convergence_csv(os.path.join(out_dir, "convergence_history.csv"), results_by_opt)
     prog.step("saved convergence_history.csv")
 
-    # Save optimizer paths + landscapes per method
-    if not args.no_landscape:
-        land_opt = args.optimizers[-1]
-        by_method = {opt: {r.method: r for r in rs} for opt, rs in results_by_opt.items()}
-        for r in results_by_opt[land_opt]:
-            trajectories = {
-                opt: by_method[opt][r.method].param_history
-                for opt in args.optimizers
-                if r.method in by_method[opt]
-            }
-            # Persist the raw optimizer paths so a landscape can be rebuilt later
-            # without re-running the VQE.
-            io.save_optimization_npz(
-                os.path.join(out_dir, f"opt_{r.method}.npz"), r.method, r.params, trajectories
-            )
-            # Also sample the landscape now (so plotting is immediate).
-            ls = landscape.compute_landscape(
-                r.ansatz,
-                system.hamiltonian,
-                system.n_qubits,
-                r.params,
-                resolution=args.landscape_res,
-                seed=args.seed,
-                trajectories=trajectories,
-            )
-            io.save_landscape_npz(os.path.join(out_dir, f"landscape_{r.method}.npz"), ls)
-            prog.step(f"saved opt_{r.method}.npz + landscape_{r.method}.npz")
-
     prog.note(
-        f"[{args.molecule}] compute done. Render with: "
+        f"[{args.molecule}] seed {args.seed} done. Plot this seed with: "
         f'python scripts/plot_vqe_analysis.py --dir "{out_dir}"'
     )
     return 0
