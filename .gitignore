@@ -119,14 +119,9 @@ gradient_scaling_plots
 circuit_plots
 
 *.ps1
+*.bat
 
 *.md
 !README.md
 
 .vscode/
-
-# Landscape analysis work in progress (kept local for now)
-src/core/analysis/landscape_orqviz.py
-src/core/analysis/landscape_shared.py
-results/LiH/minima_analysis/
-_landscape_preview/

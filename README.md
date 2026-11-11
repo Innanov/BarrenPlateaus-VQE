@@ -15,7 +15,8 @@ molecular Hamiltonians from the PennyLane qchem collection.
 - **Molecular systems** (4 to 32 qubits): pre-fetched from PennyLane and cached as
   JSON.
 - **Metrics**: energy error, real state fidelity, and gradient-variance scaling
-  (the barren-plateau metric), plus loss-landscape and convergence figures.
+  (the barren-plateau metric), plus convergence figures, all as mean and standard
+  deviation over seeded runs.
 - **Three gradient optimizers**: Adam, QNG (quantum natural gradient), and Adagrad,
   compared iteration-for-iteration.
 
@@ -48,41 +49,44 @@ records the resolved backend in each run's `run_parameters.json`.
 > There is no Windows wheel, so it is not used on Windows. On Linux with an NVIDIA
 > GPU: `pip install pennylane-lightning-gpu` then `BPVQE_DEVICE=lightning.gpu`.
 
-The mitigation methods are ported to PennyLane in `src/core/methods`. The
-published [qubap](https://github.com/jgidi/quantum-barren-plateaus) package, which
-ships only Qiskit implementations, is the credited upstream reference. It is
-**not** a runtime dependency.
-
 ## Usage
 
 Computation and plotting are **separate**: `compute_*.py` runs the physics and
-saves all data (CSV + NPZ) with no figures. `plot_*.py` rebuilds the figures from
-that saved data, so restyling a plot never re-runs the expensive physics.
+saves all data (CSV) with no figures. `plot_*.py` rebuilds the figures from that
+saved data, so restyling a plot never re-runs the expensive physics.
+
+The VQE analysis runs one seed per call. The seed sets every method's initial
+parameters, so repeating a run over several seeds shows how much a result depends
+on where it starts. Three steps turn the seeds into tables and figures:
 
 ```bash
-# COMPUTE: VQE analysis -- all five methods across all three optimizers by
-# default. Saves the performance table, convergence_history.csv, and
-# landscape_<method>.npz (grid + trajectories). No PDFs.
-python scripts/compute_vqe_analysis.py --molecule LiH --depth 4 --iters 1000
+# 1. COMPUTE: one seed of all five methods. Run it once per seed with the same
+#    other settings. Writes results/LiH/vqe_seeds/adam_depth4_iters1000/seed_<seed>/.
+python scripts/compute_vqe_analysis.py --molecule LiH --optimizers adam --seed 0
+python scripts/compute_vqe_analysis.py --molecule LiH --optimizers adam --seed 1
 
-#   ...a single optimizer, or skip landscapes, if desired:
-python scripts/compute_vqe_analysis.py --molecule LiH --optimizers adam --no-landscape
+# 2. AGGREGATE: mean and sample std over the seeds (at least two), written as
+#    performance_table_mean_std.csv and convergence_mean_std.csv.
+python scripts/aggregate_vqe_seeds.py --molecule LiH --run-name adam_depth4_iters1000
+
+# 3. PLOT: convergence of the seed mean with a shaded mean +- std band.
+python scripts/plot_vqe_seeds.py --molecule LiH --run-name adam_depth4_iters1000
+
+# Convergence of a single seed (or of a run made before seeding):
+python scripts/plot_vqe_analysis.py --dir results/LiH/vqe_seeds/adam_depth4_iters1000/seed_0
 
 # COMPUTE: gradient-variance scaling vs depth (the barren-plateau metric).
-# Optimizer-independent -- samples gradients at random inits, no optimization.
+# Optimizer-independent, samples gradients at random inits, no optimization.
 python scripts/compute_gradient_scaling.py --molecules H2 LiH BeH2 --max-layers 50 --samples 100
 
-# PLOT: rebuild figures from the saved data (re-run any time to restyle).
-python scripts/plot_vqe_analysis.py --molecule LiH        # newest LiH VQE run
+# PLOT: gradient variance vs depth, mean with a shaded mean +- std band.
 python scripts/plot_gradient_scaling.py --molecule H2     # newest H2 gradient run
-python scripts/plot_vqe_analysis.py --dir results/LiH/vqe_analysis/<timestamp>
-
-# REBUILD: re-sample the landscapes of a run from its saved optimizer paths,
-# without re-running the VQE (e.g. after a landscape-method change).
-python scripts/rebuild_landscapes.py --molecule LiH
 ```
 
-Results are written to `results/<molecule>/<analysis_type>/<timestamp>/`, with a
+Seeded VQE runs are written to `results/<molecule>/vqe_seeds/<run_name>/seed_<seed>/`,
+where `run_name` names the settings the seeds share (for example
+`adam_depth4_iters1000`). Other analyses go to
+`results/<molecule>/<analysis_type>/<timestamp>/`. Every folder has a
 `run_parameters.json` recording the run parameters, data path, and device for
 provenance. The performance CSV carries an `optimizer` column so every optimizer's
 metrics (energy, error, real fidelity) sit in one table. `n_params` and the
@@ -104,41 +108,18 @@ print(result.final_energy, metrics.fidelity(result.ansatz, result.params, system
 
 ## VQE methods
 
-Every mitigation method generalizes a method from qubap. See each method module
-for its own reference.
+The four mitigation methods are based on the Qiskit code in
+[qubap](https://github.com/jgidi/quantum-barren-plateaus). This project rewrites
+each of them in PennyLane, in a more general form, in `src/core/methods`. You do
+not need to install qubap. Each method module lists its own references.
 
 | Method | Description |
-|--------|-------------|
+| --- | --- |
 | **Standard** | The unmitigated baseline: EfficientSU2 (Ry, Rz + circular CNOT) optimized directly against the full H. |
-| **Local-Global** | Warm-start on a ground-state local cost (Cerezo et al.), then refine on the full H. |
-| **Adiabatic** | Staged anneal `(1-s)*H_local + s*H_global`, each stage held fixed and warm-started from the previous. |
+| **Local-Global** | Warm-start on a local cost (Cerezo et al.) whose minimum is the Hartree-Fock state, then refine on the full H. |
+| **Adiabatic** | Staged anneal `(1-s)*H_0 + s*H_global` from a Hartree-Fock reference Hamiltonian `H_0`, each stage held fixed and warm-started from the previous. |
 | **SEA** | Standard VQE with the State Efficient Ansatz (ported from qubap), which requires an even qubit count. |
 | **Pretrained** | Two-stage MPS: train the diagonal MPS stage, transfer by prefix zero-pad into the full MPS stage, then refine. |
-
-## Project structure
-
-```
-src/
-  core/
-    ansatze/      # EfficientSU2, MPS, SEA
-    backend/      # devices, hamiltonians (JSON -> qml.Hamiltonian, sparse ground state), optimizers
-    analysis/     # gradient-variance scaling, loss landscape, metrics
-    methods/      # the 5 methods (one module each), plus base (config/result, cost, loop, registry)
-  utils/
-    helpers.py    # small shared helpers (statevector, tape_ops, ising_system, ...)
-    io.py         # output dirs, CSV/JSON/NPZ writers + loaders, run-dir resolution, provenance
-    plotting.py   # convergence, gradient scaling, 3D + contour landscapes (IEEE style)
-    progress.py   # format_duration and the elapsed/ETA console logger
-scripts/
-  fetch_hamiltonians.py         # fetch from PennyLane -> data/*.json
-  compute_vqe_analysis.py       # COMPUTE: VQE physics -> CSV + landscape NPZ (no plots)
-  compute_gradient_scaling.py   # COMPUTE: gradient-variance sweep -> CSV (no plots)
-  plot_vqe_analysis.py          # PLOT: rebuild convergence + landscape figures from saved data
-  plot_gradient_scaling.py      # PLOT: rebuild the gradient-scaling figure from saved data
-  rebuild_landscapes.py         # re-sample landscapes from saved optimizer paths (no VQE re-run)
-data/                           # cached Hamiltonian JSONs (git-ignored)
-results/                        # analysis output: data (CSV/NPZ) + figures (git-ignored)
-```
 
 ## Citation
 
