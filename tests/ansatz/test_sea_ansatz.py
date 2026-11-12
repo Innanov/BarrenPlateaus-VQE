@@ -1,10 +1,10 @@
 """Unit tests for the SEA (State Efficient Ansatz).
 
-Pins the implementation against qubap's SCL construction: each layer is an initial
-Ry on every qubit, then d repeats of CZ on even pairs, Ry on every qubit, and an
-offset CZ with paired Ry. The full ansatz is three such layers (U1 on A, a CNOT
-ladder A[i]->B[i], U2 on A, U3 on B), and it requires an even qubit count. The
-layer uses only Ry and CZ (no Rz).
+Pins the implementation against the construction of Liu et al., arXiv:2205.13539:
+S = (U2 (x) U3) V (U1 (x) I), with V a CNOT from each A[i] to B[i] and U1, U2, U3
+alternating layered ansatze (ALT) of Ry and CZ gates, one parameter per Ry gate.
+The parameter count for an even half N is the paper's Table S1, 3N + 6(N-1)d.
+SEA requires an even qubit count.
 
 Run with: pytest tests/ansatz/test_sea_ansatz.py
 """
@@ -28,55 +28,97 @@ def test_even_qubits_ok():
         assert SEA(even).half == even // 2
 
 
-def test_total_is_three_layers():
-    # The ansatz is three SCL layers with independent parameters.
-    for n in (2, 4, 6):
+def test_total_is_three_alts():
+    for n in (2, 4, 6, 14):
         for d in (1, 2):
-            assert SEA(n, d=d).n_params == 3 * SEA._scl_n_params(n // 2, d)
+            assert SEA(n, d=d).n_params == 3 * SEA._alt_n_params(n // 2, d)
 
 
-def test_scl_formula():
-    # (d + 1) * half + d * max(half - 2, 0), matching the SCL layout.
-    assert SEA._scl_n_params(2, 1) == 4
-    assert SEA._scl_n_params(3, 1) == 7
-    assert SEA._scl_n_params(2, 2) == 6
+@pytest.mark.parametrize("half", [2, 4, 6, 8])
+@pytest.mark.parametrize("d", [1, 4])
+def test_param_count_matches_paper_table(half, d):
+    """Table S1 of the paper gives 3N + 6(N-1)l parameters for an even half N."""
+    assert SEA(2 * half, d=d).n_params == 3 * half + 6 * (half - 1) * d
 
 
-def test_uses_ry_and_cz_only_plus_ladder():
-    # SCL layers are Ry + CZ (no Rz); the only other gates are the CNOT ladder.
+def test_alt_param_count_for_odd_half():
+    # half=3, d=1: 3 initial Ry, 3 Ry after the even CZ, 2 Ry on the pair (1,2).
+    assert SEA._alt_n_params(3, 1) == 8
+    # half=7 (BeH2): 7 + d * (7 + 6).
+    assert SEA._alt_n_params(7, 4) == 7 + 4 * 13
+
+
+@pytest.mark.parametrize("n", [4, 6, 8, 12, 14])
+def test_one_parameter_per_ry_gate(n):
+    """Every Ry gate reads its own parameter, and every parameter is used once."""
+    m = SEA(n, d=2)
+    ops = tape_ops(m, np.arange(m.n_params, dtype=float))
+    angles = [float(op.parameters[0]) for op in ops if op.name == "RY"]
+    assert sorted(angles) == list(range(m.n_params))
+
+
+@pytest.mark.parametrize("n", [8, 12])
+def test_every_parameter_changes_the_state(n):
+    """No parameter is dead: moving any one of them changes the output state."""
+    m = SEA(n, d=1)
+    p = np.random.default_rng(0).uniform(0, 2 * np.pi, m.n_params)
+    base = statevector(m, n, params=p)
+    for k in range(m.n_params):
+        q = p.copy()
+        q[k] += 0.7
+        overlap = abs(np.vdot(statevector(m, n, params=q), base))
+        assert overlap < 1 - 1e-9, f"parameter {k} does not change the state"
+
+
+def test_uses_ry_and_cz_only_plus_cnots():
     m = SEA(4, d=1)
     names = {op.name for op in tape_ops(m, np.arange(m.n_params, dtype=float))}
     assert names == {"RY", "CZ", "CNOT"}
 
 
-def test_cnot_ladder_links_a_to_b():
-    # cnot_layer Full_connect: CNOT A[i] -> B[i] for i in range(half).
-    m = SEA(4, d=1)
+def test_entangling_layer_links_a_to_b():
+    # The paper's entangling layer: CNOT on the pairs (i, N + i).
+    m = SEA(6, d=1)
     ops = tape_ops(m, np.zeros(m.n_params))
     cnots = [tuple(op.wires) for op in ops if op.name == "CNOT"]
-    assert cnots == [(0, 2), (1, 3)]
+    assert cnots == [(0, 3), (1, 4), (2, 5)]
 
 
-def test_scl_matches_reference_gate_sequence():
-    """The per-layer gate list must equal the reference SCL exactly, encoding
-    the known sequence for half=2, d=1: Ry,Ry, CZ, Ry,Ry."""
-    m = SEA(4, d=1)
+def test_alt_matches_paper_figure():
+    """One 4-qubit ALT layer as drawn in the paper's ALT figure: Ry on all, CZ on
+    (0,1) and (2,3), Ry on all, CZ on (1,2), then Ry on qubits 1 and 2."""
+    m = SEA(8, d=1)
     with qml.tape.QuantumTape() as tape:
-        m._scl(np.arange(SEA._scl_n_params(2, 1), dtype=float), [0, 1])
-    seq = [(op.name, tuple(op.wires)) for op in tape.operations]
-    assert seq == [("RY", (0,)), ("RY", (1,)), ("CZ", (0, 1)), ("RY", (0,)), ("RY", (1,))]
+        m._alt(np.arange(SEA._alt_n_params(4, 1), dtype=float), [0, 1, 2, 3])
+    seq = [(op.name, tuple(op.wires), op.parameters) for op in tape.operations]
+    expected = (
+        [("RY", (q,), [float(q)]) for q in range(4)]
+        + [("CZ", (0, 1), []), ("CZ", (2, 3), [])]
+        + [("RY", (q,), [float(4 + q)]) for q in range(4)]
+        + [("CZ", (1, 2), []), ("RY", (1,), [8.0]), ("RY", (2,), [9.0])]
+    )
+    assert seq == expected
 
 
-def test_three_scl_layers_present():
-    # U1 on A, U2 on A, U3 on B: three CZ-containing layers around one ladder.
-    # Each SCL layer (half=2, d=1) has exactly one CZ, so three layers -> 3 CZ.
-    m = SEA(4, d=1)
-    ops = tape_ops(m, np.zeros(m.n_params))
-    assert sum(1 for op in ops if op.name == "CZ") == 3
+def test_schmidt_form_without_basis_change():
+    """With U2 and U3 at zero (identity), the output is sum_k lambda_k |k>_A |k>_B,
+    the Schmidt form of the paper's Fig. 2, with lambda_k the amplitudes U1 makes."""
+    n, half = 6, 3
+    m = SEA(n, d=2)
+    s = SEA._alt_n_params(half, 2)
+    p = np.zeros(m.n_params)
+    p[:s] = np.random.default_rng(1).uniform(0, 2 * np.pi, s)
+    state = statevector(m, n, params=p).reshape(2**half, 2**half)
+    assert np.allclose(state, np.diag(np.diag(state)), atol=1e-12)
+
+    with qml.tape.QuantumTape() as tape:
+        m._alt(p[:s], list(range(half)))
+    u1 = qml.matrix(tape, wire_order=list(range(half)))[:, 0]
+    assert np.allclose(np.diag(state), u1, atol=1e-10)
 
 
 def test_consumes_all_params():
-    for n in (2, 4, 6):
+    for n in (2, 4, 6, 14):
         for d in (1, 2):
             m = SEA(n, d=d)
             tape_ops(m, np.arange(m.n_params, dtype=float))  # must not raise

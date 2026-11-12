@@ -16,13 +16,14 @@ build_ansatz factory, which maps a name to the matching class:
 
     ansatz = build_ansatz("sea", n_qubits=4, d=2)   # same as SEA(4, d=2)
 
-All three are ported from qubap [1]. SEA follows the State Efficient Ansatz of Liu
-et al. [2], and MPS follows the pretraining scheme of Dborin et al. [3].
+EfficientSU2 and MPS are ported from qubap [1], and MPS follows the pretraining
+scheme of Dborin et al. [3]. SEA follows the State Efficient Ansatz of Liu et al.
+[2] as the paper defines it, which differs from qubap's port (see SEA).
 
 References:
     [1] github.com/jgidi/quantum-barren-plateaus
-    [2] Liu et al., Mitigating barren plateaus of variational quantum
-        eigensolvers, arXiv:2205.13539 (2022).
+    [2] Liu, Liu, Huang, Zhang, Wang, Mitigating barren plateaus of variational
+        quantum eigensolvers, arXiv:2205.13539 (2022).
     [3] Dborin et al., Matrix product state pre-training for quantum machine
         learning, Quantum Sci. Technol. 7, 035014 (2022), arXiv:2106.05742.
 
@@ -31,10 +32,9 @@ Classes:
         every qubit, then a circular chain of CNOTs. depth layers plus a final
         rotation block. n_params = 2 * n_qubits * (depth + 1).
     SEA: State Efficient Ansatz. Splits the qubits into halves A and B and runs,
-        in order: (1) an Ry + CZ layer on A, (2) a CNOT ladder linking each A[i]
-        to B[i], (3) an Ry + CZ layer on A and another on B. The three layers
-        share the same gate pattern but have independent parameters. Within a
-        layer, the Ry + CZ block repeats d times (d is a small integer, default 1).
+        in order: (1) the Schmidt coefficient layer U1 on A, (2) a CNOT from each
+        A[i] to B[i], (3) U2 on A and U3 on B. U1, U2 and U3 are alternating
+        layered ansatze (Ry + CZ, d layers each) with one parameter per Ry gate.
         Needs an even qubit count.
     MPS: builds either of the two circuits the pretrained method uses, chosen by
         the diagonal flag. The gates form a brick-wall circuit, where "diagonal"
@@ -266,23 +266,29 @@ class MPS(Ansatz):
 
 
 class SEA(Ansatz):
-    """State Efficient Ansatz.
+    """State Efficient Ansatz of Liu et al. [2].
 
-    Splits the register into system A (first n/2 qubits) and system B (last n/2),
-    then runs in order:
+    Follows the paper's construction S = (U2 (x) U3) V (U1 (x) I) on a register
+    split into system A (first n/2 qubits) and system B (last n/2):
 
-        1. an Ry + CZ layer on A,
-        2. a CNOT ladder linking each A[i] to B[i],
-        3. an Ry + CZ layer on A and another on B.
+        1. the Schmidt coefficient layer U1 on A,
+        2. the entangling layer V, a CNOT from each A[i] to B[i],
+        3. the local basis changing layer, U2 on A and U3 on B.
 
-    Each layer starts with an Ry on every qubit, then repeats the following block
-    d times: CZ on the even-indexed neighbour pairs, Ry on every qubit, then CZ on
-    the odd-indexed pairs with a Ry on each of those two qubits. The three layers
-    share this gate pattern but have independent parameters.
+    U1, U2 and U3 are alternating layered ansatze (ALT), the choice the paper uses
+    for its VQE runs. Each ALT starts with an Ry on every qubit, then repeats the
+    following block d times: CZ on the even-indexed neighbour pairs, Ry on every
+    qubit, then CZ on the odd-indexed pairs followed by an Ry on each of those two
+    qubits (the paper's ALT figure). Every Ry has its own parameter, so for an even
+    half N the count is 3N + 6(N-1)d, the paper's Table S1.
+
+    qubap's port of this ansatz gives the two Ry gates after each odd-pair CZ one
+    shared parameter and sizes the parameter vector for unshared ones, which leaves
+    some entries unused. This class follows the paper instead.
 
     Attributes:
         n_qubits: Number of qubits. Must be even.
-        d: Number of Ry + CZ repetitions inside each layer.
+        d: Number of ALT layers inside each of U1, U2 and U3.
         half: Qubits per subsystem (n_qubits // 2, set in __init__).
         n_params: Number of trainable parameters (set in __init__).
 
@@ -296,59 +302,59 @@ class SEA(Ansatz):
         if self.n_qubits % 2 != 0:
             raise ValueError(f"SEA requires an even number of qubits, got {self.n_qubits}.")
         self.half = self.n_qubits // 2
-        self._scl_params = self._scl_n_params(self.half, self.d)
-        self.n_params = 3 * self._scl_params
+        self._alt_params = self._alt_n_params(self.half, self.d)
+        self.n_params = 3 * self._alt_params
 
     @staticmethod
-    def _scl_n_params(half: int, d: int) -> int:
-        """Return one Ry + CZ layer's parameter count.
+    def _alt_n_params(qubits: int, d: int) -> int:
+        """Return one ALT's parameter count, one per Ry gate.
+
+        The initial Ry layer has qubits gates. Each of the d layers adds an Ry on
+        every qubit plus two Ry per odd-indexed pair, of which there are
+        (qubits - 1) // 2.
 
         Args:
-            half: Number of qubits the layer acts on (half the register).
-            d: Number of repetitions of the Ry + CZ body.
+            qubits: Number of qubits the ALT acts on (half the register).
+            d: Number of ALT layers.
         """
-        return (d + 1) * half + d * max(half - 2, 0)
+        return qubits + d * (qubits + 2 * ((qubits - 1) // 2))
 
-    def _scl(self, params, wires) -> None:
-        """Apply one Ry + CZ layer to the given wires.
+    def _alt(self, params, wires) -> None:
+        """Apply one ALT to the given wires.
 
-        params is a flat vector of length self._scl_n_params(len(wires), d). wires is
+        params is a flat vector of length self._alt_n_params(len(wires), d). wires is
         the subsystem it acts on.
         """
         qubits = len(wires)
-        par = -(qubits % 2)  # parity: -1 for odd, 0 for even
         idx = 0
         for i in range(qubits):
             qml.RY(params[idx], wires=wires[i])
             idx += 1
         for _ in range(self.d):
-            for i in range(0, qubits + par, 2):
-                if i + 1 < qubits:
-                    qml.CZ(wires=[wires[i], wires[i + 1]])
+            for i in range(0, qubits - 1, 2):
+                qml.CZ(wires=[wires[i], wires[i + 1]])
             for i in range(qubits):
                 qml.RY(params[idx], wires=wires[i])
                 idx += 1
-            # offset CZ chain with paired Ry (the "1..qubits-1 step 2" body)
             for i in range(1, qubits - 1, 2):
-                if i + 1 < qubits:
-                    qml.CZ(wires=[wires[i], wires[i + 1]])
-                    qml.RY(params[idx], wires=wires[i])
-                    qml.RY(params[idx], wires=wires[i + 1])
-                    idx += 1
+                qml.CZ(wires=[wires[i], wires[i + 1]])
+                qml.RY(params[idx], wires=wires[i])
+                qml.RY(params[idx + 1], wires=wires[i + 1])
+                idx += 2
 
     def apply(self, params) -> None:
-        s = self._scl_params
+        s = self._alt_params
         p1 = params[0:s]
         p2 = params[s : 2 * s]
         p3 = params[2 * s : 3 * s]
         wires_A = list(range(self.half))
         wires_B = list(range(self.half, self.n_qubits))
 
-        self._scl(p1, wires_A)  # U1 on A
-        for i in range(self.half):  # CNOT ladder A[i] -> B[i]
+        self._alt(p1, wires_A)  # U1 on A
+        for i in range(self.half):  # V: CNOT A[i] -> B[i]
             qml.CNOT(wires=[wires_A[i], wires_B[i]])
-        self._scl(p2, wires_A)  # U2 on A
-        self._scl(p3, wires_B)  # U3 on B
+        self._alt(p2, wires_A)  # U2 on A
+        self._alt(p3, wires_B)  # U3 on B
 
 
 def build_ansatz(name: str, n_qubits: int, d: int = 1) -> Ansatz:
