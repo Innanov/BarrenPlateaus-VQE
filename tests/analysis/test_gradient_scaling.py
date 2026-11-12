@@ -10,7 +10,12 @@ Run with: pytest tests/analysis/test_gradient_scaling.py
 import numpy as np
 import pytest
 
-from src.core.analysis import COSTS, cost_observable, gradient_scaling, warm_start_gradient_scaling
+from src.core.analysis import (
+    COSTS,
+    cost_observable,
+    gradient_scaling,
+    warm_start_gradient_scaling,
+)
 from src.core.methods import MethodConfig, local_global, pretrained
 from src.utils.helpers import expectation, ising_system
 
@@ -52,7 +57,9 @@ def test_random_sweep_records_cost_and_start(system, cost):
 def test_default_sweep_matches_explicit_energy_cost(system):
     """Adding the cost option leaves the default measurement unchanged."""
     default = gradient_scaling(system, depths=[2], n_samples=3, seed=5)[0]
-    explicit = gradient_scaling(system, depths=[2], n_samples=3, seed=5, cost="energy")[0]
+    explicit = gradient_scaling(
+        system, depths=[2], n_samples=3, seed=5, cost="energy"
+    )[0]
     assert default.mean_grad_var == explicit.mean_grad_var
     assert default.mean_grad_norm == explicit.mean_grad_norm
 
@@ -60,7 +67,9 @@ def test_default_sweep_matches_explicit_energy_cost(system):
 def test_local_global_warm_start_is_its_handoff_point(system):
     """The warm-start energy equals local_global's energy at its stage boundary."""
     warm_iters = 5
-    run = local_global(system, MethodConfig(depth=1, max_iters=2, warm_iters=warm_iters, seed=3))
+    run = local_global(
+        system, MethodConfig(depth=1, max_iters=2, warm_iters=warm_iters, seed=3)
+    )
     handoff_energy = run.energy_history_global[warm_iters - 1]
     point = warm_start_gradient_scaling(
         system,
@@ -75,12 +84,16 @@ def test_local_global_warm_start_is_its_handoff_point(system):
         "energy",
         1,
     )
-    assert np.isclose(point.mean_energy_error, handoff_energy - system.fci_energy, atol=1e-10)
+    assert np.isclose(
+        point.mean_energy_error, handoff_energy - system.fci_energy, atol=1e-10
+    )
 
 
 def test_pretrained_warm_start_is_its_transfer_point(system):
     """The warm-start energy equals pretrained's first full-stage energy."""
-    run = pretrained(system, MethodConfig(depth=1, max_iters=2, warm_iters=5, seed=2))
+    run = pretrained(
+        system, MethodConfig(depth=1, max_iters=2, warm_iters=5, seed=2)
+    )
     point = warm_start_gradient_scaling(
         system, "pretrained", depths=[1], n_samples=1, seed=2, warm_iters=5
     )[0]
@@ -94,9 +107,15 @@ def test_pretrained_warm_start_is_its_transfer_point(system):
 
 def test_warm_start_samples_use_consecutive_seeds(system):
     """Two samples from seed 0 give the same mean as seeds 0 and 1 run one by one."""
-    both = warm_start_gradient_scaling(system, "local_global", [1], n_samples=2, warm_iters=3)[0]
-    first = warm_start_gradient_scaling(system, "local_global", [1], 1, seed=0, warm_iters=3)[0]
-    second = warm_start_gradient_scaling(system, "local_global", [1], 1, seed=1, warm_iters=3)[0]
+    both = warm_start_gradient_scaling(
+        system, "local_global", [1], n_samples=2, warm_iters=3
+    )[0]
+    first = warm_start_gradient_scaling(
+        system, "local_global", [1], 1, seed=0, warm_iters=3
+    )[0]
+    second = warm_start_gradient_scaling(
+        system, "local_global", [1], 1, seed=1, warm_iters=3
+    )[0]
     expected = (first.mean_energy_error + second.mean_energy_error) / 2
     assert np.isclose(both.mean_energy_error, expected, atol=1e-12)
 

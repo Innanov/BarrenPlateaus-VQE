@@ -56,7 +56,9 @@ def test_standard_matches_direct_pipeline(two_qubit_system):
     opt = build_optimizer(cfg.optimizer, seed=cfg.seed, **cfg.optimizer_kwargs)
     _, expected_history, _ = _optimize(cost, params, opt, cfg.max_iters)
 
-    np.testing.assert_allclose(result.energy_history, expected_history, atol=1e-12)
+    np.testing.assert_allclose(
+        result.energy_history, expected_history, atol=1e-12
+    )
 
 
 def test_standard_is_deterministic(two_qubit_system):
@@ -75,5 +77,9 @@ def test_final_energy_matches_last_param(two_qubit_system):
     cfg = MethodConfig(depth=1, max_iters=4, seed=0)
     result = standard(two_qubit_system, cfg)
     n = two_qubit_system.n_qubits
-    cost = _make_cost(EfficientSU2(n, d=cfg.depth), two_qubit_system.hamiltonian, n)
-    assert float(cost(result.params)) == pytest.approx(result.final_energy, abs=1e-9)
+    cost = _make_cost(
+        EfficientSU2(n, d=cfg.depth), two_qubit_system.hamiltonian, n
+    )
+    assert float(cost(result.params)) == pytest.approx(
+        result.final_energy, abs=1e-9
+    )

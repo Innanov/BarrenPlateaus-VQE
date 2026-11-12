@@ -87,7 +87,9 @@ class GradientScalingPoint:
     std_energy_error: float = float("nan")
 
 
-def cost_observable(system: MolecularSystem, cost: str = "energy") -> qml.Hamiltonian:
+def cost_observable(
+    system: MolecularSystem, cost: str = "energy"
+) -> qml.Hamiltonian:
     """Return the observable whose expectation is the named cost.
 
     Args:
@@ -148,7 +150,9 @@ def _energy_grads(ansatz, hamiltonian, n_qubits, n_samples, rng):
     return np.array(grads)
 
 
-def _point(system, method, depth, n_params, grads, runtime_s, cost, start, errors=None):
+def _point(
+    system, method, depth, n_params, grads, runtime_s, cost, start, errors=None
+):
     """Reduce sampled gradients (and energy errors) to a GradientScalingPoint."""
     var_per_component = np.var(grads, axis=0)
     norms = np.linalg.norm(grads, axis=1)
@@ -274,7 +278,9 @@ def warm_start_gradient_scaling(
     from ..methods import MethodConfig, run_method
 
     if method not in WARM_START_METHODS:
-        raise ValueError(f"No warm start for '{method}'. Choices: {list(WARM_START_METHODS)}")
+        raise ValueError(
+            f"No warm start for '{method}'. Choices: {list(WARM_START_METHODS)}"
+        )
     depths = list(depths)
     points = []
     sweep_start = time.perf_counter()
@@ -293,7 +299,9 @@ def warm_start_gradient_scaling(
             if grad_fn is None:
                 grad_fn = _grad_fn(r.ansatz, system.hamiltonian, system.n_qubits)
                 n_params = r.n_params
-            params = pnp.array(np.asarray(r.params, dtype=float), requires_grad=True)
+            params = pnp.array(
+                np.asarray(r.params, dtype=float), requires_grad=True
+            )
             grads.append(np.asarray(grad_fn(params), dtype=float))
             errors.append(r.final_energy - system.fci_energy)
         point = _point(

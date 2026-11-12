@@ -38,7 +38,9 @@ def make_output_dir(molecule: str, analysis_type: str, timestamp: str) -> str:
     return path
 
 
-def resolve_run_dir(run_dir: str | None, molecule: str | None, analysis_type: str) -> str:
+def resolve_run_dir(
+    run_dir: str | None, molecule: str | None, analysis_type: str
+) -> str:
     """Resolve a run directory from an explicit path or the newest matching run.
 
     If run_dir is given it is returned as-is. Otherwise the newest run under
@@ -103,7 +105,11 @@ def load_convergence(path: str) -> dict:
             start = min(d["b"]) if d["b"] else 0
             xs = [i for i in sorted(d["e"]) if i >= start]
             hist = [d["e"][i] for i in xs]
-            results.append(SimpleNamespace(method=m, energy_history=hist, stage_boundaries=[]))
+            results.append(
+                SimpleNamespace(
+                    method=m, energy_history=hist, stage_boundaries=[]
+                )
+            )
         results_by_opt[opt] = results
     return results_by_opt
 
@@ -125,7 +131,9 @@ def system_info(run_dir: str):
 
     try:
         params = json.load(open(os.path.join(run_dir, "run_parameters.json")))
-        system = load_hamiltonian(params["molecule"], params.get("geometry", "equilibrium"))
+        system = load_hamiltonian(
+            params["molecule"], params.get("geometry", "equilibrium")
+        )
         label = f"{system.molecule} ({system.n_qubits} qubits)"
         return system.fci_energy, label
     except Exception:
@@ -139,7 +147,9 @@ def main_iters(run_dir: str) -> int | None:
         run_dir: The run directory holding run_parameters.json.
     """
     try:
-        with open(os.path.join(run_dir, "run_parameters.json"), encoding="utf-8") as fh:
+        with open(
+            os.path.join(run_dir, "run_parameters.json"), encoding="utf-8"
+        ) as fh:
             return int(json.load(fh)["iters"])
     except (OSError, KeyError, ValueError):
         return None
@@ -203,7 +213,14 @@ def write_convergence_csv(path: str, results_by_opt) -> str:
     Returns:
         The written path.
     """
-    fields = ["optimizer", "method", "iteration", "energy", "energy_global", "is_stage_boundary"]
+    fields = [
+        "optimizer",
+        "method",
+        "iteration",
+        "energy",
+        "energy_global",
+        "is_stage_boundary",
+    ]
     _ensure_parent(path)
     with open(path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=fields)
@@ -246,10 +263,14 @@ def seed_run_dir(molecule: str, run_name: str, seed: int) -> str:
     Returns:
         The absolute path of the created directory.
     """
-    return make_output_dir(molecule, os.path.join(SEEDS_ANALYSIS, run_name), f"seed_{seed}")
+    return make_output_dir(
+        molecule, os.path.join(SEEDS_ANALYSIS, run_name), f"seed_{seed}"
+    )
 
 
-def resolve_seeds_dir(run_dir: str | None, molecule: str | None, run_name: str | None) -> str:
+def resolve_seeds_dir(
+    run_dir: str | None, molecule: str | None, run_name: str | None
+) -> str:
     """Resolve a results/<molecule>/vqe_seeds/<run_name>/ folder.
 
     Args:
@@ -270,9 +291,13 @@ def resolve_seeds_dir(run_dir: str | None, molecule: str | None, run_name: str |
     root = os.path.join(RESULTS_ROOT, molecule, SEEDS_ANALYSIS)
     if run_name:
         return os.path.join(root, run_name)
-    names = sorted(d for d in glob.glob(os.path.join(root, "*")) if os.path.isdir(d))
+    names = sorted(
+        d for d in glob.glob(os.path.join(root, "*")) if os.path.isdir(d)
+    )
     if len(names) != 1:
-        raise SystemExit(f"Pick one with --run-name: {[os.path.basename(n) for n in names]}")
+        raise SystemExit(
+            f"Pick one with --run-name: {[os.path.basename(n) for n in names]}"
+        )
     return names[0]
 
 
@@ -288,7 +313,9 @@ def find_seed_dirs(run_dir: str) -> dict[int, str]:
     found = {}
     for d in glob.glob(os.path.join(run_dir, "seed_*")):
         tail = os.path.basename(d)[len("seed_") :]
-        if tail.isdigit() and os.path.isfile(os.path.join(d, "performance_table_all_methods.csv")):
+        if tail.isdigit() and os.path.isfile(
+            os.path.join(d, "performance_table_all_methods.csv")
+        ):
             found[int(tail)] = d
     return dict(sorted(found.items()))
 
@@ -310,7 +337,10 @@ def load_convergence_mean_std(path: str) -> dict:
     with open(path, newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
             d = acc.setdefault(row["optimizer"], {}).setdefault(row["method"], {})
-            d[int(row["iteration"])] = (float(row["energy_mean"]), float(row["energy_std"]))
+            d[int(row["iteration"])] = (
+                float(row["energy_mean"]),
+                float(row["energy_std"]),
+            )
     results_by_opt = {}
     for opt, methods in acc.items():
         results_by_opt[opt] = [
@@ -359,5 +389,8 @@ def write_run_parameters(
         The written path.
     """
     payload = dict(params)
-    payload["_provenance"] = {"data_dir": os.path.abspath(data_dir), **(provenance or {})}
+    payload["_provenance"] = {
+        "data_dir": os.path.abspath(data_dir),
+        **(provenance or {}),
+    }
     return write_json(os.path.join(output_dir, "run_parameters.json"), payload)

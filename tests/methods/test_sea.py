@@ -32,7 +32,9 @@ def test_sea_equals_standard_vqe_with_sea_ansatz(four_qubit_system):
     opt = build_optimizer(cfg.optimizer, seed=cfg.seed, **cfg.optimizer_kwargs)
     _, expected_history, _ = _optimize(cost, params, opt, cfg.max_iters)
 
-    np.testing.assert_allclose(result.energy_history, expected_history, atol=1e-12)
+    np.testing.assert_allclose(
+        result.energy_history, expected_history, atol=1e-12
+    )
 
 
 def test_sea_is_single_stage(four_qubit_system):

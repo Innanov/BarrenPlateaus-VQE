@@ -29,7 +29,9 @@ def parse_args(argv=None):
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    p.add_argument("--dir", help="Run or seed directory holding convergence_history.csv.")
+    p.add_argument(
+        "--dir", help="Run or seed directory holding convergence_history.csv."
+    )
     p.add_argument(
         "--molecule",
         "-m",
@@ -60,7 +62,11 @@ def main(argv=None) -> int:
     fci, label = io.system_info(run_dir)  # label = "H2 (4 qubits)"
     max_iters = io.main_iters(run_dir)
     paths = plots.write_convergence_figures(
-        io.load_convergence(conv_csv), run_dir, fci_energy=fci, label=label, max_iters=max_iters
+        io.load_convergence(conv_csv),
+        run_dir,
+        fci_energy=fci,
+        label=label,
+        max_iters=max_iters,
     )
     for path in paths:
         print(f"wrote {path}")

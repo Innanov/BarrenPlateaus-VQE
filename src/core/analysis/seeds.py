@@ -41,7 +41,9 @@ def aggregate_performance(tables: dict[int, pd.DataFrame]) -> pd.DataFrame:
     counts = grouped["seed"].nunique()
     incomplete = counts[counts != len(tables)]
     if not incomplete.empty:
-        raise ValueError(f"not every seed has these runs: {list(incomplete.index)}")
+        raise ValueError(
+            f"not every seed has these runs: {list(incomplete.index)}"
+        )
 
     stats = grouped[list(STAT_COLUMNS)].agg(["mean", "std"])
     stats.columns = [f"{col}_{stat}" for col, stat in stats.columns]
@@ -85,8 +87,12 @@ def aggregate_convergence(curves: dict[int, dict]) -> pd.DataFrame:
             raise ValueError(f"{opt}/{method} is missing for seeds {missing}")
         lengths = {seed: len(h) for seed, h in by_seed.items()}
         if len(set(lengths.values())) != 1:
-            raise ValueError(f"{opt}/{method} curve lengths differ across seeds: {lengths}")
-        energies = np.array(list(by_seed.values()), dtype=float)  # (n_seeds, n_iters)
+            raise ValueError(
+                f"{opt}/{method} curve lengths differ across seeds: {lengths}"
+            )
+        energies = np.array(
+            list(by_seed.values()), dtype=float
+        )  # (n_seeds, n_iters)
         mean = energies.mean(axis=0)
         std = energies.std(axis=0, ddof=1)
         for it in range(energies.shape[1]):
@@ -122,12 +128,16 @@ def replace_methods(old: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
         ValueError: If the two tables have different columns.
     """
     if set(old.columns) != set(new.columns):
-        raise ValueError(f"columns differ: {sorted(old.columns)} vs {sorted(new.columns)}")
+        raise ValueError(
+            f"columns differ: {sorted(old.columns)} vs {sorted(new.columns)}"
+        )
     keys = ["optimizer", "method"]
     old_runs = list(dict.fromkeys(old[keys].itertuples(index=False, name=None)))
     new_runs = list(dict.fromkeys(new[keys].itertuples(index=False, name=None)))
     parts = []
     for run in old_runs + [r for r in new_runs if r not in old_runs]:
         src = new if run in new_runs else old
-        parts.append(src[(src["optimizer"] == run[0]) & (src["method"] == run[1])])
+        parts.append(
+            src[(src["optimizer"] == run[0]) & (src["method"] == run[1])]
+        )
     return pd.concat(parts, ignore_index=True)[list(old.columns)]

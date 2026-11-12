@@ -31,7 +31,13 @@ from pennylane import numpy as pnp
 
 from ..ansatze import EfficientSU2
 from ..backend import MolecularSystem, build_optimizer
-from .base import MethodConfig, MethodResult, _fixed_hamiltonian, _make_cost, _optimize
+from .base import (
+    MethodConfig,
+    MethodResult,
+    _fixed_hamiltonian,
+    _make_cost,
+    _optimize,
+)
 
 
 def adiabatic(system: MolecularSystem, config: MethodConfig) -> MethodResult:
@@ -69,7 +75,9 @@ def adiabatic(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     base, extra = divmod(iters, n_stages)
     stage_iters = [base + (1 if i < extra else 0) for i in range(n_stages)]
 
-    optimizer = build_optimizer(config.optimizer, seed=config.seed, **config.optimizer_kwargs)
+    optimizer = build_optimizer(
+        config.optimizer, seed=config.seed, **config.optimizer_kwargs
+    )
     params = optimizer.reset(params)
 
     history = []
@@ -80,12 +88,17 @@ def adiabatic(system: MolecularSystem, config: MethodConfig) -> MethodResult:
         h_s = _interpolate(h_local, h_global, s)
         cost_s = _make_cost(ansatz, h_s, n)
         # reset=False: keep optimizer state across stages so the anneal is smooth.
-        params, hist, phist = _optimize(cost_s, params, optimizer, stage_iters[i], reset=False)
+        params, hist, phist = _optimize(
+            cost_s, params, optimizer, stage_iters[i], reset=False
+        )
         history.extend(hist)
         param_history.extend(phist)
 
     # Energy vs the FULL Hamiltonian along the whole path -> continuous curve.
-    history_global = [float(cost_global(pnp.array(p, requires_grad=False))) for p in param_history]
+    history_global = [
+        float(cost_global(pnp.array(p, requires_grad=False)))
+        for p in param_history
+    ]
 
     return MethodResult(
         method="adiabatic",
@@ -123,7 +136,9 @@ def hf_reference_hamiltonian(occupation) -> qml.Hamiltonian:
     return _fixed_hamiltonian(coeffs, obs)
 
 
-def _interpolate(h_local: qml.Hamiltonian, h_global: qml.Hamiltonian, s: float) -> qml.Hamiltonian:
+def _interpolate(
+    h_local: qml.Hamiltonian, h_global: qml.Hamiltonian, s: float
+) -> qml.Hamiltonian:
     """Return (1 - s) * H_local + s * H_global.
 
     Args:
@@ -134,6 +149,8 @@ def _interpolate(h_local: qml.Hamiltonian, h_global: qml.Hamiltonian, s: float) 
     Returns:
         The interpolated Hamiltonian, simplified.
     """
-    coeffs = list((1.0 - s) * pnp.array(h_local.coeffs)) + list(s * pnp.array(h_global.coeffs))
+    coeffs = list((1.0 - s) * pnp.array(h_local.coeffs)) + list(
+        s * pnp.array(h_global.coeffs)
+    )
     obs = list(h_local.ops) + list(h_global.ops)
     return _fixed_hamiltonian(coeffs, obs)

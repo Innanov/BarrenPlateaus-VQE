@@ -30,7 +30,13 @@ from pennylane import numpy as pnp
 from ...utils.helpers import single_qubit_marginals
 from ..ansatze import EfficientSU2
 from ..backend import MolecularSystem, build_optimizer
-from .base import MethodConfig, MethodResult, _fixed_hamiltonian, _make_cost, _optimize
+from .base import (
+    MethodConfig,
+    MethodResult,
+    _fixed_hamiltonian,
+    _make_cost,
+    _optimize,
+)
 
 _PAULI_MATS = {
     "I": np.array([[1, 0], [0, 1]], dtype=complex),
@@ -70,8 +76,12 @@ def local_global(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     cost_local = _make_cost(ansatz, h_local, n)
     cost_global = _make_cost(ansatz, system.hamiltonian, n)
 
-    opt = build_optimizer(config.optimizer, seed=config.seed, **config.optimizer_kwargs)
-    params, hist_local, phist_local = _optimize(cost_local, params, opt, config.warm_iters)
+    opt = build_optimizer(
+        config.optimizer, seed=config.seed, **config.optimizer_kwargs
+    )
+    params, hist_local, phist_local = _optimize(
+        cost_local, params, opt, config.warm_iters
+    )
     boundary = len(hist_local)
 
     params, hist_global, phist_global = _optimize(
@@ -80,7 +90,9 @@ def local_global(system: MolecularSystem, config: MethodConfig) -> MethodResult:
 
     history = hist_local + hist_global
     full_params = phist_local + phist_global
-    history_global = [float(cost_global(pnp.array(p, requires_grad=False))) for p in full_params]
+    history_global = [
+        float(cost_global(pnp.array(p, requires_grad=False))) for p in full_params
+    ]
     return MethodResult(
         method="local_global",
         energy_history=history,

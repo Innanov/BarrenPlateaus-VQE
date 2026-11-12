@@ -207,11 +207,15 @@ def plot_convergence_grid(
     method_color = {m: cmap(i % 10) for i, m in enumerate(methods)}
 
     with plt.rc_context(IEEE_STYLE):
-        fig, axes = plt.subplots(1, ncols, figsize=(2.6 * ncols, 2.9), sharey=True, squeeze=False)
+        fig, axes = plt.subplots(
+            1, ncols, figsize=(2.6 * ncols, 2.9), sharey=True, squeeze=False
+        )
         axes = axes[0]
         for ax, opt in zip(axes, opt_names, strict=False):
             for r in results_by_opt[opt]:
-                _plot_curve(ax, r, color=method_color.get(r.method, "gray"), linewidth=1.0)
+                _plot_curve(
+                    ax, r, color=method_color.get(r.method, "gray"), linewidth=1.0
+                )
             if fci_energy is not None:
                 ax.axhline(
                     fci_energy,
@@ -226,7 +230,10 @@ def plot_convergence_grid(
         axes[0].set_ylabel("energy (Ha)")
 
         # One shared legend for the whole figure: method colours (+ FCI).
-        handles = [Line2D([0], [0], color=method_color[m], lw=1.4, label=m) for m in methods]
+        handles = [
+            Line2D([0], [0], color=method_color[m], lw=1.4, label=m)
+            for m in methods
+        ]
         if fci_energy is not None:
             handles.append(
                 Line2D(
@@ -301,19 +308,25 @@ def plot_convergence_optimizers(
                     linewidth=1.0,
                 )
         if fci_energy is not None:
-            ax.axhline(fci_energy, color="black", linestyle=(0, (1, 1)), linewidth=0.8)
+            ax.axhline(
+                fci_energy, color="black", linestyle=(0, (1, 1)), linewidth=0.8
+            )
         if max_iters is not None:
             ax.set_xlim(0, max_iters)  # cap the view (e.g. hide a warm-up tail)
         ax.set_xlabel("iteration")
         ax.set_ylabel("energy (Ha)")
         # Title above the method legend, which is itself above the axes.
         ax.set_title(
-            title or "VQE convergence: " + " vs ".join(o.upper() for o in opt_names),
+            title
+            or "VQE convergence: " + " vs ".join(o.upper() for o in opt_names),
             pad=22,
         )
 
         # Legend 1: method colours (outside, above the axes).
-        method_handles = [Line2D([0], [0], color=method_color[m], lw=1.4, label=m) for m in methods]
+        method_handles = [
+            Line2D([0], [0], color=method_color[m], lw=1.4, label=m)
+            for m in methods
+        ]
         leg1 = ax.legend(
             handles=method_handles,
             loc="lower center",
@@ -385,7 +398,11 @@ def plot_gradient_comparison(curves, path: str, title: str | None = None) -> str
         for label, method, start, points in curves:
             pts = sorted(points, key=lambda p: p.n_layers)
             color = cmap(order.index(method) % 10) if method in order else "gray"
-            style = dict(ls="--", marker="o", markersize=3) if start == "warm_start" else {}
+            style = (
+                dict(ls="--", marker="o", markersize=3)
+                if start == "warm_start"
+                else {}
+            )
             ax.plot(
                 [p.n_layers for p in pts],
                 [p.mean_grad_var for p in pts],

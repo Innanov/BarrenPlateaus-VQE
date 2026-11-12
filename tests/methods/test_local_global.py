@@ -21,7 +21,9 @@ from src.utils.helpers import expectation, statevector
 
 
 def test_local_cost_is_a_valid_hamiltonian(two_qubit_system):
-    o_l = local_cost_observable(two_qubit_system.hf_state, two_qubit_system.n_qubits)
+    o_l = local_cost_observable(
+        two_qubit_system.hf_state, two_qubit_system.n_qubits
+    )
     assert isinstance(o_l, qml.Hamiltonian)
 
 
@@ -88,11 +90,15 @@ def test_global_curve_uses_full_hamiltonian(two_qubit_system):
     """
     cfg = MethodConfig(depth=1, max_iters=4, warm_iters=3, seed=0)
     result = local_global(two_qubit_system, cfg)
-    assert result.energy_history_global[-1] == pytest.approx(result.final_energy, abs=1e-6)
+    assert result.energy_history_global[-1] == pytest.approx(
+        result.final_energy, abs=1e-6
+    )
 
 
 def test_reported_state_matches_params(two_qubit_system):
     cfg = MethodConfig(depth=1, max_iters=3, warm_iters=2, seed=1)
     result = local_global(two_qubit_system, cfg)
-    state = statevector(result.ansatz, two_qubit_system.n_qubits, params=pnp.array(result.params))
+    state = statevector(
+        result.ansatz, two_qubit_system.n_qubits, params=pnp.array(result.params)
+    )
     assert float(np.abs(np.vdot(state, state))) == pytest.approx(1.0, abs=1e-6)

@@ -67,7 +67,9 @@ def parse_args(argv=None):
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     p.add_argument("--molecule", "-m", required=True, help="Molecule name.")
-    p.add_argument("--max-depth", type=int, default=None, help="Drop depths above this.")
+    p.add_argument(
+        "--max-depth", type=int, default=None, help="Drop depths above this."
+    )
     return p.parse_args(argv)
 
 
@@ -86,7 +88,9 @@ def newest_runs(gs_dir: str) -> dict:
         with open(params_path, encoding="utf-8") as fh:
             params = json.load(fh)
         warm = params.get("warm_start")
-        ansatz = "efficient_su2" if warm else params.get("ansatz", "efficient_su2")
+        ansatz = (
+            "efficient_su2" if warm else params.get("ansatz", "efficient_su2")
+        )
         kind = (ansatz, params.get("cost", "energy"), warm)
         if kind in KINDS:
             found[kind] = run_dir
@@ -108,7 +112,9 @@ def load_points(run_dir: str, max_depth: int | None):
                     SimpleNamespace(
                         n_layers=depth,
                         mean_grad_var=float(row["mean_grad_var"]),
-                        mean_energy_error=float(row.get("mean_energy_error") or "nan"),
+                        mean_energy_error=float(
+                            row.get("mean_energy_error") or "nan"
+                        ),
                     )
                 )
     return points

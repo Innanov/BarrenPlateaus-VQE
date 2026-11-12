@@ -62,7 +62,10 @@ class Adam(Optimizer):
 
     def reset(self, params):
         self._opt = qml.AdamOptimizer(
-            stepsize=self.stepsize, beta1=self.beta1, beta2=self.beta2, eps=self.eps
+            stepsize=self.stepsize,
+            beta1=self.beta1,
+            beta2=self.beta2,
+            eps=self.eps,
         )
         return pnp.array(np.asarray(params, dtype=float), requires_grad=True)
 
@@ -96,7 +99,9 @@ class QNG(Optimizer):
         self._opt = None
 
     def reset(self, params):
-        self._opt = qml.QNGOptimizer(stepsize=self.stepsize, approx=self.approx, lam=self.lam)
+        self._opt = qml.QNGOptimizer(
+            stepsize=self.stepsize, approx=self.approx, lam=self.lam
+        )
         return pnp.array(np.asarray(params, dtype=float), requires_grad=True)
 
     def step(self, cost, params):

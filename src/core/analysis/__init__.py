@@ -8,7 +8,13 @@ from .gradient_scaling import (
     gradient_scaling,
     warm_start_gradient_scaling,
 )
-from .metrics import energy_error, fidelity, gradient_norm, gradient_variance, statevector
+from .metrics import (
+    energy_error,
+    fidelity,
+    gradient_norm,
+    gradient_variance,
+    statevector,
+)
 from .seeds import aggregate_convergence, aggregate_performance, replace_methods
 
 __all__ = [

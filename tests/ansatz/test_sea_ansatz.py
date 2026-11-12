@@ -102,7 +102,8 @@ def test_alt_matches_paper_figure():
 
 def test_schmidt_form_without_basis_change():
     """With U2 and U3 at zero (identity), the output is sum_k lambda_k |k>_A |k>_B,
-    the Schmidt form of the paper's Fig. 2, with lambda_k the amplitudes U1 makes."""
+    the Schmidt form of the paper's Fig. 2, with lambda_k the amplitudes U1 makes.
+    """
     n, half = 6, 3
     m = SEA(n, d=2)
     s = SEA._alt_n_params(half, 2)
@@ -127,4 +128,6 @@ def test_consumes_all_params():
 def test_state_is_unit_norm():
     for n in (2, 4):
         state = statevector(SEA(n, d=1), n)
-        assert float(np.abs(np.vdot(state, state))) == pytest.approx(1.0, abs=1e-6)
+        assert float(np.abs(np.vdot(state, state))) == pytest.approx(
+            1.0, abs=1e-6
+        )

@@ -124,7 +124,9 @@ def _term_to_observable(pauli_string: str):
     return obs
 
 
-def load_hamiltonian(molecule: str, geometry: str = "equilibrium") -> MolecularSystem:
+def load_hamiltonian(
+    molecule: str, geometry: str = "equilibrium"
+) -> MolecularSystem:
     """Load a cached molecule and build its PennyLane Hamiltonian.
 
     Args:
@@ -156,7 +158,9 @@ def load_hamiltonian(molecule: str, geometry: str = "equilibrium") -> MolecularS
 
     n_qubits = int(raw["n_qubits"])
     # Exact FCI ground state from the cached determinant expansion, if present.
-    cached_gs = _ground_state_from_dets(raw.get("gs_dets"), raw.get("gs_coeffs"), n_qubits)
+    cached_gs = _ground_state_from_dets(
+        raw.get("gs_dets"), raw.get("gs_coeffs"), n_qubits
+    )
 
     return MolecularSystem(
         molecule=str(raw["molecule"]),
@@ -166,7 +170,9 @@ def load_hamiltonian(molecule: str, geometry: str = "equilibrium") -> MolecularS
         n_qubits=n_qubits,
         fci_energy=float(raw["fci_energy"]),
         hamiltonian=hamiltonian,
-        electrons=(int(raw["electrons"]) if raw.get("electrons") is not None else None),
+        electrons=(
+            int(raw["electrons"]) if raw.get("electrons") is not None else None
+        ),
         _ground_state=cached_gs,
     )
 

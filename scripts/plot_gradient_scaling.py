@@ -29,9 +29,13 @@ def parse_args(argv=None):
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    p.add_argument("--dir", help="Run directory (results/<mol>/gradient_scaling/<ts>).")
     p.add_argument(
-        "--molecule", "-m", help="Render the newest gradient_scaling run for this molecule."
+        "--dir", help="Run directory (results/<mol>/gradient_scaling/<ts>)."
+    )
+    p.add_argument(
+        "--molecule",
+        "-m",
+        help="Render the newest gradient_scaling run for this molecule.",
     )
     return p.parse_args(argv)
 

@@ -106,7 +106,12 @@ def ising_hamiltonian(n_qubits):
     if n_qubits == 2:
         return qml.Hamiltonian(
             [1.0, 1.0, 0.5, 0.5],
-            [qml.PauliZ(0) @ qml.PauliZ(1), qml.PauliX(0), qml.PauliX(1), qml.PauliZ(0)],
+            [
+                qml.PauliZ(0) @ qml.PauliZ(1),
+                qml.PauliX(0),
+                qml.PauliX(1),
+                qml.PauliZ(0),
+            ],
         )
     if n_qubits == 4:
         return qml.Hamiltonian(
@@ -121,7 +126,9 @@ def ising_hamiltonian(n_qubits):
                 qml.PauliX(3),
             ],
         )
-    raise ValueError(f"No hand-made Hamiltonian for {n_qubits} qubits (use 2 or 4).")
+    raise ValueError(
+        f"No hand-made Hamiltonian for {n_qubits} qubits (use 2 or 4)."
+    )
 
 
 def ising_system(n_qubits):

@@ -50,8 +50,12 @@ def parse_args(argv=None):
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    p.add_argument("--molecules", "-m", nargs="+", default=["H2"], help="Molecule names.")
-    p.add_argument("--geometry", "-g", default="equilibrium", help="Geometry label.")
+    p.add_argument(
+        "--molecules", "-m", nargs="+", default=["H2"], help="Molecule names."
+    )
+    p.add_argument(
+        "--geometry", "-g", default="equilibrium", help="Geometry label."
+    )
     p.add_argument(
         "--ansatz",
         "-a",
@@ -71,7 +75,9 @@ def parse_args(argv=None):
         choices=list(WARM_START_METHODS),
         help="Measure at this method's handoff point instead of random parameters.",
     )
-    p.add_argument("--max-layers", type=int, default=50, help="Sweep depths 1..max-layers.")
+    p.add_argument(
+        "--max-layers", type=int, default=50, help="Sweep depths 1..max-layers."
+    )
     p.add_argument(
         "--depths",
         type=int,
@@ -92,9 +98,13 @@ def parse_args(argv=None):
         default=150,
         help="Warm-up iterations (warm starts).",
     )
-    p.add_argument("--optimizer", default="adam", help="Warm-up optimizer (warm starts).")
+    p.add_argument(
+        "--optimizer", default="adam", help="Warm-up optimizer (warm starts)."
+    )
     args = p.parse_args(argv)
-    if args.warm_start and (args.ansatz != "efficient_su2" or args.cost != "energy"):
+    if args.warm_start and (
+        args.ansatz != "efficient_su2" or args.cost != "energy"
+    ):
         p.error(
             "--warm-start uses the method's own ansatz and the energy, drop --ansatz and --cost"
         )
@@ -162,8 +172,12 @@ def main(argv=None) -> int:
             "grad_var_by_depth": {p.n_layers: p.mean_grad_var for p in points},
             "min_grad_var": min(p.mean_grad_var for p in points),
         }
-        io.write_json(os.path.join(out_dir, "barren_plateau_summary.json"), summary)
-        io.write_run_parameters(out_dir, dict(vars(args), device=active_backend()), data_dir="data")
+        io.write_json(
+            os.path.join(out_dir, "barren_plateau_summary.json"), summary
+        )
+        io.write_run_parameters(
+            out_dir, dict(vars(args), device=active_backend()), data_dir="data"
+        )
         print(
             f"[{mol}] compute done. Render with: "
             f'python scripts/plot_gradient_scaling.py --dir "{out_dir}"',

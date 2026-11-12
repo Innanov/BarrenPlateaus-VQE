@@ -51,9 +51,15 @@ def parse_args(argv=None):
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     p.add_argument("--molecule", "-m", default="H2", help="Molecule name.")
-    p.add_argument("--geometry", "-g", default="equilibrium", help="Geometry label.")
     p.add_argument(
-        "--depth", "-d", type=int, default=4, help="Ansatz depth (same for all methods)."
+        "--geometry", "-g", default="equilibrium", help="Geometry label."
+    )
+    p.add_argument(
+        "--depth",
+        "-d",
+        type=int,
+        default=4,
+        help="Ansatz depth (same for all methods).",
     )
     p.add_argument(
         "--optimizers",
@@ -63,8 +69,15 @@ def parse_args(argv=None):
         choices=["adam", "qng", "adagrad"],
         help="Optimizers to run.",
     )
-    p.add_argument("--iters", type=int, default=1000, help="Main-stage iterations.")
-    p.add_argument("--warm-iters", type=int, default=150, help="Warm-start/refinement iterations.")
+    p.add_argument(
+        "--iters", type=int, default=1000, help="Main-stage iterations."
+    )
+    p.add_argument(
+        "--warm-iters",
+        type=int,
+        default=150,
+        help="Warm-start/refinement iterations.",
+    )
     p.add_argument(
         "--methods",
         nargs="+",
@@ -72,7 +85,9 @@ def parse_args(argv=None):
         choices=list(METHODS),
         help="Subset of methods to run.",
     )
-    p.add_argument("--seed", type=int, default=0, help="RNG seed for the initial parameters.")
+    p.add_argument(
+        "--seed", type=int, default=0, help="RNG seed for the initial parameters."
+    )
     p.add_argument(
         "--run-name",
         default=None,
@@ -80,7 +95,11 @@ def parse_args(argv=None):
         "<optimizers>_depth<d>_iters<n>, with the geometry in front when it is "
         "not equilibrium and --tag at the end.",
     )
-    p.add_argument("--tag", default=None, help="Optional label appended to the default run name.")
+    p.add_argument(
+        "--tag",
+        default=None,
+        help="Optional label appended to the default run name.",
+    )
     return p.parse_args(argv)
 
 
@@ -89,7 +108,11 @@ def default_run_name(args) -> str:
     parts = []
     if args.geometry != "equilibrium":
         parts.append(args.geometry)
-    parts += ["-".join(args.optimizers), f"depth{args.depth}", f"iters{args.iters}"]
+    parts += [
+        "-".join(args.optimizers),
+        f"depth{args.depth}",
+        f"iters{args.iters}",
+    ]
     if args.tag:
         parts.append(args.tag)
     return "_".join(parts)
@@ -122,9 +145,15 @@ def main(argv=None) -> int:
     )
     if is_partial_rerun(out_dir, args):
         check_same_settings(out_dir, args)
-        prog.note(f"seed_{args.seed} exists in {args.run_name}, replacing only {args.methods}.")
-    elif os.path.isfile(os.path.join(out_dir, "performance_table_all_methods.csv")):
-        prog.note(f"seed_{args.seed} already exists in {args.run_name}, overwriting it.")
+        prog.note(
+            f"seed_{args.seed} exists in {args.run_name}, replacing only {args.methods}."
+        )
+    elif os.path.isfile(
+        os.path.join(out_dir, "performance_table_all_methods.csv")
+    ):
+        prog.note(
+            f"seed_{args.seed} already exists in {args.run_name}, overwriting it."
+        )
 
     results_by_opt = {}
     rows = []
@@ -175,7 +204,9 @@ _RERUN_KEYS = {"methods", "device", "_provenance"}
 
 def is_partial_rerun(out_dir: str, args) -> bool:
     """True when the seed already has results and this call runs only some methods."""
-    done = os.path.isfile(os.path.join(out_dir, "performance_table_all_methods.csv"))
+    done = os.path.isfile(
+        os.path.join(out_dir, "performance_table_all_methods.csv")
+    )
     return done and set(args.methods) != set(METHODS)
 
 
@@ -185,10 +216,14 @@ def check_same_settings(out_dir: str, args) -> None:
     The run name covers the optimizers, depth, iterations, geometry and tag but
     not, for example, warm_iters, so the full parameter sets are compared here.
     """
-    with open(os.path.join(out_dir, "run_parameters.json"), encoding="utf-8") as fh:
+    with open(
+        os.path.join(out_dir, "run_parameters.json"), encoding="utf-8"
+    ) as fh:
         old = json.load(fh)
     new = dict(vars(args))
-    diff = sorted(k for k in (set(old) | set(new)) - _RERUN_KEYS if old.get(k) != new.get(k))
+    diff = sorted(
+        k for k in (set(old) | set(new)) - _RERUN_KEYS if old.get(k) != new.get(k)
+    )
     if diff:
         raise SystemExit(f"{out_dir} was run with different settings in: {diff}")
 
@@ -225,7 +260,9 @@ def save_seed(out_dir: str, args, rows, results_by_opt) -> None:
         perf = replace_methods(_read_exact(perf_path), pd.DataFrame(rows))
         conv = replace_methods(_read_exact(conv_path), new_conv)
 
-        with open(os.path.join(out_dir, "run_parameters.json"), encoding="utf-8") as fh:
+        with open(
+            os.path.join(out_dir, "run_parameters.json"), encoding="utf-8"
+        ) as fh:
             old = json.load(fh)
         held = set(old["methods"]) | set(args.methods)
         params["methods"] = [m for m in METHODS if m in held]
@@ -238,7 +275,9 @@ def save_seed(out_dir: str, args, rows, results_by_opt) -> None:
         io.write_csv(perf_path, rows)
         io.write_convergence_csv(conv_path, results_by_opt)
 
-    io.write_run_parameters(out_dir, params, data_dir="data", provenance=provenance)
+    io.write_run_parameters(
+        out_dir, params, data_dir="data", provenance=provenance
+    )
 
 
 if __name__ == "__main__":

@@ -1,14 +1,14 @@
 # Shared tool configuration for the pre-commit linters (ruff, black, isort).
 [tool.black]
-line-length = 100
+line-length = 82
 target-version = ["py310"]
 
 [tool.isort]
 profile = "black"          # keep isort and black from fighting over import formatting
-line_length = 100
+line_length = 82
 
 [tool.ruff]
-line-length = 100
+line-length = 82
 target-version = "py310"
 
 [tool.ruff.lint]

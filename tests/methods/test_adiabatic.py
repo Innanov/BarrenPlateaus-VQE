@@ -22,7 +22,9 @@ def _matrix(hamiltonian, n):
     return qml.matrix(hamiltonian, wire_order=range(n))
 
 
-def test_hf_reference_hamiltonian_ground_state_is_hf_determinant(four_qubit_system):
+def test_hf_reference_hamiltonian_ground_state_is_hf_determinant(
+    four_qubit_system,
+):
     """H_0's non-degenerate ground state is the HF occupation basis state, so the
     anneal starts from an easy-to-prepare reference and not the exact ground state.
     """
@@ -41,7 +43,9 @@ def test_interpolate_endpoints_match_qubap_ramp():
     """
     n = 2
     h_local = qml.Hamiltonian([1.0, 0.5], [qml.PauliZ(0), qml.PauliX(1)])
-    h_global = qml.Hamiltonian([1.0, 1.0], [qml.PauliZ(0) @ qml.PauliZ(1), qml.PauliX(0)])
+    h_global = qml.Hamiltonian(
+        [1.0, 1.0], [qml.PauliZ(0) @ qml.PauliZ(1), qml.PauliX(0)]
+    )
 
     at0 = _matrix(_interpolate(h_local, h_global, 0.0), n)
     at1 = _matrix(_interpolate(h_local, h_global, 1.0), n)
@@ -76,7 +80,9 @@ def test_total_iters_exact_when_steps_do_not_divide(two_qubit_system):
     the budget equal to every other method.
     """
     for max_iters, steps in [(20, 7), (20, 3), (13, 5), (7, 4)]:
-        cfg = MethodConfig(depth=1, max_iters=max_iters, adiabatic_steps=steps, seed=0)
+        cfg = MethodConfig(
+            depth=1, max_iters=max_iters, adiabatic_steps=steps, seed=0
+        )
         result = adiabatic(two_qubit_system, cfg)
         assert len(result.energy_history) == max_iters
 
@@ -112,4 +118,6 @@ def test_global_curve_length_matches_param_path(two_qubit_system):
     result = adiabatic(two_qubit_system, cfg)
     assert len(result.energy_history_global) == len(result.param_history)
     assert result.stage_boundaries == []
-    assert result.energy_history_global[-1] == pytest.approx(result.final_energy, abs=1e-6)
+    assert result.energy_history_global[-1] == pytest.approx(
+        result.final_energy, abs=1e-6
+    )

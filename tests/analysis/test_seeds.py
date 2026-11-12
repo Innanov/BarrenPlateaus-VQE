@@ -13,7 +13,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.core.analysis import aggregate_convergence, aggregate_performance, replace_methods
+from src.core.analysis import (
+    aggregate_convergence,
+    aggregate_performance,
+    replace_methods,
+)
 
 
 def _table(energies):
@@ -36,7 +40,12 @@ def _table(energies):
 
 def _curves(histories):
     """A results_by_opt mapping for one seed, as io.load_convergence returns."""
-    return {"adam": [SimpleNamespace(method=m, energy_history=h) for m, h in histories.items()]}
+    return {
+        "adam": [
+            SimpleNamespace(method=m, energy_history=h)
+            for m, h in histories.items()
+        ]
+    }
 
 
 def test_performance_mean_and_sample_std():
@@ -62,7 +71,10 @@ def test_performance_refuses_missing_run_and_single_seed():
     """A method absent from one seed, or a lone seed, raises instead of averaging."""
     with pytest.raises(ValueError):
         aggregate_performance(
-            {0: _table({"standard": -1.0, "sea": -2.0}), 1: _table({"standard": -1.0})}
+            {
+                0: _table({"standard": -1.0, "sea": -2.0}),
+                1: _table({"standard": -1.0}),
+            }
         )
     with pytest.raises(ValueError):
         aggregate_performance({0: _table({"standard": -1.0})})
@@ -70,17 +82,25 @@ def test_performance_refuses_missing_run_and_single_seed():
 
 def test_convergence_mean_and_std_per_iteration():
     """Per-iteration mean and std match numpy across seeds."""
-    curves = {0: _curves({"standard": [0.0, -1.0]}), 1: _curves({"standard": [-2.0, -1.0]})}
+    curves = {
+        0: _curves({"standard": [0.0, -1.0]}),
+        1: _curves({"standard": [-2.0, -1.0]}),
+    }
     out = aggregate_convergence(curves)
     assert list(out["iteration"]) == [0, 1]
     assert list(out["energy_mean"]) == pytest.approx([-1.0, -1.0])
-    assert list(out["energy_std"]) == pytest.approx([np.std([0.0, -2.0], ddof=1), 0.0])
+    assert list(out["energy_std"]) == pytest.approx(
+        [np.std([0.0, -2.0], ddof=1), 0.0]
+    )
     assert (out["n_seeds"] == 2).all()
 
 
 def test_convergence_refuses_unequal_lengths():
     """Curves of different length for the same run mean different settings."""
-    curves = {0: _curves({"standard": [0.0, -1.0]}), 1: _curves({"standard": [0.0]})}
+    curves = {
+        0: _curves({"standard": [0.0, -1.0]}),
+        1: _curves({"standard": [0.0]}),
+    }
     with pytest.raises(ValueError):
         aggregate_convergence(curves)
 
@@ -100,16 +120,31 @@ def test_replace_methods_on_long_curves_and_new_runs():
 
     def long(method, energies):
         return pd.DataFrame(
-            dict(optimizer="adam", method=method, iteration=range(len(energies)), energy=energies)
+            dict(
+                optimizer="adam",
+                method=method,
+                iteration=range(len(energies)),
+                energy=energies,
+            )
         )
 
-    old = pd.concat([long("standard", [0.0, -1.0]), long("sea", [0.0, -2.0])], ignore_index=True)
-    new = pd.concat([long("sea", [0.5, -3.0]), long("pretrained", [0.0, -4.0])], ignore_index=True)
+    old = pd.concat(
+        [long("standard", [0.0, -1.0]), long("sea", [0.0, -2.0])],
+        ignore_index=True,
+    )
+    new = pd.concat(
+        [long("sea", [0.5, -3.0]), long("pretrained", [0.0, -4.0])],
+        ignore_index=True,
+    )
     out = replace_methods(old, new)
-    assert list(out["method"]) == ["standard"] * 2 + ["sea"] * 2 + ["pretrained"] * 2
+    assert (
+        list(out["method"]) == ["standard"] * 2 + ["sea"] * 2 + ["pretrained"] * 2
+    )
     assert list(out["energy"]) == [0.0, -1.0, 0.5, -3.0, 0.0, -4.0]
 
 
 def test_replace_methods_refuses_different_columns():
     with pytest.raises(ValueError):
-        replace_methods(_table({"sea": -2.0}), _table({"sea": -2.0}).drop(columns="fidelity"))
+        replace_methods(
+            _table({"sea": -2.0}), _table({"sea": -2.0}).drop(columns="fidelity")
+        )
