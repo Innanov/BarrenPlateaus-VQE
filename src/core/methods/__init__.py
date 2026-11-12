@@ -31,7 +31,7 @@ References:
         "Improving the Variational Quantum Eigensolver Using Variational Adiabatic
         Quantum Computing", ACM Trans. Quantum Comput. 3(1), 1-20 (2022),
         doi:10.1145/3479197.
-    [4] Liu, Liu, Zhang, Huang, Wang, "Mitigating barren plateaus of variational
+    [4] Liu, Liu, Huang, Zhang, Wang, "Mitigating barren plateaus of variational
         quantum eigensolvers", IEEE Trans. Quantum Eng. 5, 1-19 (2024).
     [5] Dborin, Barratt, Wimalaweera, Wright, Green, "Matrix product state
         pre-training for quantum machine learning", Quantum Sci. Technol. 7(3),

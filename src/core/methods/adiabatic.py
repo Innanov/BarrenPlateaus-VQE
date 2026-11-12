@@ -37,8 +37,8 @@ from .base import MethodConfig, MethodResult, _fixed_hamiltonian, _make_cost, _o
 def adiabatic(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     """Adiabatic VQE: a staged anneal from H_0 to H_global, warm-started.
 
-    Follows the reference (qubap AdiabaticVQE.run_vqe): the schedule is split
-    into adiabatic_steps stages (default 10). Within each stage the interpolated
+    The schedule is split into adiabatic_steps stages (default 10, an arbitrary
+    choice). Within each stage the interpolated
     Hamiltonian is held FIXED while the optimizer runs its share of the iterations,
     each stage warm-started from the previous. The max_iters total is spread evenly
     across the stages (so the total matches every other method):

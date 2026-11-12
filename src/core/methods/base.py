@@ -40,7 +40,8 @@ class MethodConfig:
         adiabatic_steps: Number of anneal stages for the adiabatic method. The
             Hamiltonian is held fixed within each stage, which runs
             max_iters / adiabatic_steps iterations warm-started from the previous.
-            Default 10 (the reference value).
+            Default 10, an arbitrary choice (qubap has no stage count, it ramps
+            continuously).
     """
 
     depth: int = 4
@@ -49,7 +50,7 @@ class MethodConfig:
     max_iters: int = 200
     seed: int = 0
     warm_iters: int = 50
-    adiabatic_steps: int = 10  # reference (qubap) value
+    adiabatic_steps: int = 10
 
 
 @dataclass
