@@ -55,7 +55,9 @@ def make_device(n_qubits: int, backend: str | None = None):
         n_qubits: Number of wires.
         backend: One of BACKENDS. Defaults to lightning.qubit.
     """
-    return qml.device(_resolve_backend(backend or _DEFAULT_BACKEND), wires=n_qubits)
+    return qml.device(
+        _resolve_backend(backend or _DEFAULT_BACKEND), wires=n_qubits
+    )
 
 
 def active_backend(backend: str | None = None) -> str:

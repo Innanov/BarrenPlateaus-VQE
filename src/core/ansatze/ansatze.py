@@ -67,7 +67,9 @@ class Ansatz:
         """Build the ansatz gates for the given parameter vector (subclass provides)."""
         raise NotImplementedError
 
-    def random_params(self, rng: np.random.Generator | None = None, scale: float = 2 * np.pi):
+    def random_params(
+        self, rng: np.random.Generator | None = None, scale: float = 2 * np.pi
+    ):
         """Draw a random parameter vector, uniform in [0, scale).
 
         Returns a pennylane.numpy array of length n_params with
@@ -75,7 +77,9 @@ class Ansatz:
         optimizer). A fresh default generator is used when rng is None.
         """
         rng = np.random.default_rng() if rng is None else rng
-        return pnp.array(rng.uniform(0.0, scale, size=self.n_params), requires_grad=True)
+        return pnp.array(
+            rng.uniform(0.0, scale, size=self.n_params), requires_grad=True
+        )
 
     @staticmethod
     def _block_n_params(spec) -> int:
@@ -232,7 +236,11 @@ class MPS(Ansatz):
         offdiag = (
             0
             if self.diagonal
-            else (self.d * self._offdiag_count(self.n_qubits) * self._offdiag_block_params)
+            else (
+                self.d
+                * self._offdiag_count(self.n_qubits)
+                * self._offdiag_block_params
+            )
         )
         self._diag_total = diag
         self.n_params = diag + offdiag
@@ -300,7 +308,9 @@ class SEA(Ansatz):
         self.n_qubits = n_qubits
         self.d = d
         if self.n_qubits % 2 != 0:
-            raise ValueError(f"SEA requires an even number of qubits, got {self.n_qubits}.")
+            raise ValueError(
+                f"SEA requires an even number of qubits, got {self.n_qubits}."
+            )
         self.half = self.n_qubits // 2
         self._alt_params = self._alt_n_params(self.half, self.d)
         self.n_params = 3 * self._alt_params

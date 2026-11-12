@@ -30,7 +30,10 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.core.analysis import aggregate_convergence, aggregate_performance  # noqa: E402
+from src.core.analysis import (  # noqa: E402
+    aggregate_convergence,
+    aggregate_performance,
+)
 from src.utils import io  # noqa: E402
 
 # run_parameters.json keys that may differ between seeds of one setting.
@@ -42,8 +45,14 @@ def parse_args(argv=None):
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    p.add_argument("--dir", help="The results/<molecule>/vqe_seeds/<run_name>/ folder.")
-    p.add_argument("--molecule", "-m", help="Molecule, used with --run-name instead of --dir.")
+    p.add_argument(
+        "--dir", help="The results/<molecule>/vqe_seeds/<run_name>/ folder."
+    )
+    p.add_argument(
+        "--molecule",
+        "-m",
+        help="Molecule, used with --run-name instead of --dir.",
+    )
     p.add_argument(
         "--run-name",
         help="Run name under results/<molecule>/vqe_seeds/. Optional when there is only one.",
@@ -65,12 +74,20 @@ def shared_parameters(seed_dirs: dict[int, str]) -> dict:
     for seed, d in seed_dirs.items():
         with open(os.path.join(d, "run_parameters.json"), encoding="utf-8") as fh:
             params[seed] = json.load(fh)
-    common = {k: v for k, v in next(iter(params.values())).items() if k not in _PER_SEED_KEYS}
+    common = {
+        k: v
+        for k, v in next(iter(params.values())).items()
+        if k not in _PER_SEED_KEYS
+    }
     for seed, p in params.items():
         this = {k: v for k, v in p.items() if k not in _PER_SEED_KEYS}
         if this != common:
-            diff = sorted(k for k in set(this) | set(common) if this.get(k) != common.get(k))
-            raise SystemExit(f"seed_{seed} has different settings from the others in: {diff}")
+            diff = sorted(
+                k for k in set(this) | set(common) if this.get(k) != common.get(k)
+            )
+            raise SystemExit(
+                f"seed_{seed} has different settings from the others in: {diff}"
+            )
     devices = sorted({p.get("device") for p in params.values()} - {None})
     return dict(common, seeds=list(params), devices=devices)
 
@@ -81,10 +98,14 @@ def main(argv=None) -> int:
     seeds_dir = io.resolve_seeds_dir(args.dir, args.molecule, args.run_name)
     seed_dirs = io.find_seed_dirs(seeds_dir)
     if len(seed_dirs) < 2:
-        raise SystemExit(f"need at least 2 seed folders in {seeds_dir}, found {list(seed_dirs)}")
+        raise SystemExit(
+            f"need at least 2 seed folders in {seeds_dir}, found {list(seed_dirs)}"
+        )
     params = shared_parameters(seed_dirs)
     if len(params["devices"]) > 1:
-        print(f"note: seeds ran on different devices {params['devices']}, so runtime_s mixes them")
+        print(
+            f"note: seeds ran on different devices {params['devices']}, so runtime_s mixes them"
+        )
 
     tables = {
         seed: pd.read_csv(os.path.join(d, "performance_table_all_methods.csv"))

@@ -48,7 +48,12 @@ def test_full_stage_stepsize_is_a_fifth_of_the_pretraining(
 
     monkeypatch.setattr(pretrained_module, "build_optimizer", recording_build)
     cfg = MethodConfig(
-        depth=1, optimizer=optimizer, max_iters=1, warm_iters=1, seed=0, optimizer_kwargs=kwargs
+        depth=1,
+        optimizer=optimizer,
+        max_iters=1,
+        warm_iters=1,
+        seed=0,
+        optimizer_kwargs=kwargs,
     )
     pretrained(four_qubit_system, cfg)
     stage1, stage2 = built
@@ -108,5 +113,9 @@ def test_reported_ansatz_is_full_mps(four_qubit_system):
 def test_final_energy_matches_full_stage_end(four_qubit_system):
     cfg = MethodConfig(depth=1, max_iters=4, warm_iters=2, seed=0)
     result = pretrained(four_qubit_system, cfg)
-    state = statevector(result.ansatz, four_qubit_system.n_qubits, params=np.asarray(result.params))
+    state = statevector(
+        result.ansatz,
+        four_qubit_system.n_qubits,
+        params=np.asarray(result.params),
+    )
     assert float(np.abs(np.vdot(state, state))) == pytest.approx(1.0, abs=1e-6)

@@ -218,7 +218,9 @@ def hamiltonian_to_pauli_terms(hamiltonian, n_qubits, qml):
     if hasattr(hamiltonian, "coeffs") and hasattr(hamiltonian, "ops"):
         return [
             [_op_to_label(op, n_qubits), float(coeff)]
-            for coeff, op in zip(hamiltonian.coeffs, hamiltonian.ops, strict=False)
+            for coeff, op in zip(
+                hamiltonian.coeffs, hamiltonian.ops, strict=False
+            )
         ]
 
     # Strategy 2: modern Sum of SProd
@@ -250,7 +252,9 @@ def hamiltonian_to_pauli_terms(hamiltonian, n_qubits, qml):
 # Core fetch
 
 
-def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbose, qml):
+def fetch_molecule(
+    molname, bondlength, basis, output_dir, geometry_label, verbose, qml
+):
     """Download one molecule/bondlength and save to JSON. Returns True on success."""
     out_path = os.path.join(output_dir, f"{molname}_{geometry_label}.json")
 
@@ -260,16 +264,22 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
         return True
 
     if verbose:
-        print(f"  Fetching {molname} ({geometry_label}, bond={bondlength} Å, basis={basis}) ...")
+        print(
+            f"  Fetching {molname} ({geometry_label}, bond={bondlength} Å, basis={basis}) ..."
+        )
 
     try:
-        datasets = qml.data.load("qchem", molname=molname, basis=basis, bondlength=bondlength)
+        datasets = qml.data.load(
+            "qchem", molname=molname, basis=basis, bondlength=bondlength
+        )
     except Exception as e:
         print(f"  [ERROR] qml.data.load failed: {e}")
         return False
 
     if not datasets:
-        print(f"  [ERROR] No dataset returned for {molname} bondlength={bondlength}")
+        print(
+            f"  [ERROR] No dataset returned for {molname} bondlength={bondlength}"
+        )
         return False
 
     data = datasets[0]
@@ -313,10 +323,14 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
         try:
             import numpy as np
 
-            eigvals = np.linalg.eigvalsh(qml.matrix(data.hamiltonian, wire_order=range(n_qubits)))
+            eigvals = np.linalg.eigvalsh(
+                qml.matrix(data.hamiltonian, wire_order=range(n_qubits))
+            )
             fci_energy = float(eigvals.min())
             if verbose:
-                print(f"  Computed FCI energy via diagonalization: {fci_energy:.8f}")
+                print(
+                    f"  Computed FCI energy via diagonalization: {fci_energy:.8f}"
+                )
         except Exception as e:
             print(f"  [WARN] Could not compute FCI energy: {e}")
 
@@ -365,13 +379,17 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
 def list_molecules(basis, qml):
     """Print all available molecules and their bond lengths from the live registry."""
     print(f"Querying PennyLane dataset registry (preferred basis={basis}) ...")
-    print(f"\n  {'Molecule':<10} {'Basis':<10} {'# bond lengths':<18} {'Range (Å)'}")
+    print(
+        f"\n  {'Molecule':<10} {'Basis':<10} {'# bond lengths':<18} {'Range (Å)'}"
+    )
     print("  " + "-" * 62)
     for mol in ALL_MOLECULES:
         actual_basis, bls = get_available_bondlengths(mol, basis, qml)
         if bls:
             note = " (fallback)" if actual_basis != basis else ""
-            print(f"  {mol:<10} {actual_basis:<10} {len(bls):<18} {bls[0]} to {bls[-1]}{note}")
+            print(
+                f"  {mol:<10} {actual_basis:<10} {len(bls):<18} {bls[0]} to {bls[-1]}{note}"
+            )
         else:
             print(f"  {mol:<10} {'(not found)'}")
 
@@ -451,7 +469,9 @@ def main():
     for name in args.molecules:
         canonical = mol_lookup.get(name.upper())
         if canonical is None:
-            print(f"[WARN] Unknown molecule '{name}', skipping. Use --list to see options.")
+            print(
+                f"[WARN] Unknown molecule '{name}', skipping. Use --list to see options."
+            )
         elif name.upper() in skip_set:
             print(f"[SKIP] {canonical}")
         else:
@@ -470,7 +490,9 @@ def main():
             print(f"Molecule: {molname}")
             print(f"{'='*60}")
 
-        actual_basis, bondlengths = get_available_bondlengths(molname, args.basis, qml)
+        actual_basis, bondlengths = get_available_bondlengths(
+            molname, args.basis, qml
+        )
 
         if not bondlengths:
             print(f"  [WARN] No bond lengths found for {molname}, skipping.")
@@ -478,7 +500,9 @@ def main():
             continue
 
         if actual_basis != args.basis and verbose:
-            print(f"  [INFO] {molname} not available in {args.basis}, using {actual_basis}")
+            print(
+                f"  [INFO] {molname} not available in {args.basis}, using {actual_basis}"
+            )
 
         if args.all_bondlengths:
             geometries = [(f"bl_{bl}", bl) for bl in bondlengths]
@@ -489,7 +513,10 @@ def main():
             print(
                 f"  Available bond lengths ({len(bondlengths)}): {bondlengths[0]} to {bondlengths[-1]}"
             )
-            print(f"  Fetching {len(geometries)} geometries: " f"{[g[0] for g in geometries]}")
+            print(
+                f"  Fetching {len(geometries)} geometries: "
+                f"{[g[0] for g in geometries]}"
+            )
 
         for geometry_label, bondlength in geometries:
             ok = fetch_molecule(

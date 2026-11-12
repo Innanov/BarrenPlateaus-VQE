@@ -113,7 +113,9 @@ def _fixed_hamiltonian(coeffs, obs) -> qml.Hamiltonian:
     return qml.Hamiltonian(pnp.array(coeffs, requires_grad=False), obs).simplify()
 
 
-def _make_cost(ansatz: Ansatz, hamiltonian: qml.Hamiltonian, n_qubits: int) -> Callable:
+def _make_cost(
+    ansatz: Ansatz, hamiltonian: qml.Hamiltonian, n_qubits: int
+) -> Callable:
     """Build a QNode cost function for <ansatz(params)| H |ansatz(params)>.
 
     Args:
@@ -160,7 +162,9 @@ def _optimize(cost, params, optimizer: Optimizer, iters: int, reset: bool = True
     return params, history, param_history
 
 
-def _load_methods() -> dict[str, Callable[[MolecularSystem, MethodConfig], MethodResult]]:
+def _load_methods() -> (
+    dict[str, Callable[[MolecularSystem, MethodConfig], MethodResult]]
+):
     """Import the method functions and return the name->function registry.
 
     Imported here, not at module top, to avoid a circular import: each method
@@ -215,7 +219,9 @@ class _MethodRegistry(Mapping):
 METHODS = _MethodRegistry()
 
 
-def run_method(name: str, system: MolecularSystem, config: MethodConfig) -> MethodResult:
+def run_method(
+    name: str, system: MolecularSystem, config: MethodConfig
+) -> MethodResult:
     """Look up a method in METHODS by name, run it, and time it.
 
     The dispatch entry point: unlike calling a method function directly, this

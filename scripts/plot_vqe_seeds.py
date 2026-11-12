@@ -32,8 +32,14 @@ def parse_args(argv=None):
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    p.add_argument("--dir", help="The results/<molecule>/vqe_seeds/<run_name>/ folder.")
-    p.add_argument("--molecule", "-m", help="Molecule, used with --run-name instead of --dir.")
+    p.add_argument(
+        "--dir", help="The results/<molecule>/vqe_seeds/<run_name>/ folder."
+    )
+    p.add_argument(
+        "--molecule",
+        "-m",
+        help="Molecule, used with --run-name instead of --dir.",
+    )
     p.add_argument(
         "--run-name",
         help="Run name under results/<molecule>/vqe_seeds/. Optional when there is only one.",
@@ -47,7 +53,9 @@ def main(argv=None) -> int:
     seeds_dir = io.resolve_seeds_dir(args.dir, args.molecule, args.run_name)
     conv_csv = os.path.join(seeds_dir, "convergence_mean_std.csv")
     if not os.path.isfile(conv_csv):
-        raise SystemExit(f"no convergence_mean_std.csv in {seeds_dir}, run aggregate_vqe_seeds.py")
+        raise SystemExit(
+            f"no convergence_mean_std.csv in {seeds_dir}, run aggregate_vqe_seeds.py"
+        )
 
     fci, label = io.system_info(seeds_dir)
     max_iters = io.main_iters(seeds_dir)

@@ -54,8 +54,12 @@ def pretrained(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     mps = MPS(n, d=config.depth, diagonal=True)
     mps_params = mps.random_params(rng)
     cost_mps = _make_cost(mps, system.hamiltonian, n)
-    opt = build_optimizer(config.optimizer, seed=config.seed, **config.optimizer_kwargs)
-    mps_params, hist_mps, _ = _optimize(cost_mps, mps_params, opt, config.warm_iters)
+    opt = build_optimizer(
+        config.optimizer, seed=config.seed, **config.optimizer_kwargs
+    )
+    mps_params, hist_mps, _ = _optimize(
+        cost_mps, mps_params, opt, config.warm_iters
+    )
     boundary = len(hist_mps)
 
     # Stage 2: full ansatz, warm-started by the prefix zero-pad transfer.
@@ -69,8 +73,12 @@ def pretrained(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     stage2_kwargs["stepsize"] = 0.2 * opt.stepsize
     if config.optimizer.lower() == "qng":
         stage2_kwargs.setdefault("approx", "diag")
-    opt2 = build_optimizer(config.optimizer, seed=config.seed + 1, **stage2_kwargs)
-    full_params, hist_full, phist_full = _optimize(cost_full, full_params, opt2, config.max_iters)
+    opt2 = build_optimizer(
+        config.optimizer, seed=config.seed + 1, **stage2_kwargs
+    )
+    full_params, hist_full, phist_full = _optimize(
+        cost_full, full_params, opt2, config.max_iters
+    )
 
     combined = hist_mps + hist_full  # full record (MPS pre-stage + quantum stage)
     return MethodResult(
