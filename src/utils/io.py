@@ -343,17 +343,21 @@ def write_json(path: str, obj) -> str:
     return path
 
 
-def write_run_parameters(output_dir: str, params: dict, data_dir: str) -> str:
+def write_run_parameters(
+    output_dir: str, params: dict, data_dir: str, provenance: dict | None = None
+) -> str:
     """Write run_parameters.json with provenance.
 
     Args:
         output_dir: The run's output directory.
         params: Run parameters (config, seeds, method list, ...).
         data_dir: The data-source directory recorded for provenance.
+        provenance: Extra entries for the _provenance block, for example the
+            methods rerun in a seed folder.
 
     Returns:
         The written path.
     """
     payload = dict(params)
-    payload["_provenance"] = {"data_dir": os.path.abspath(data_dir)}
+    payload["_provenance"] = {"data_dir": os.path.abspath(data_dir), **(provenance or {})}
     return write_json(os.path.join(output_dir, "run_parameters.json"), payload)

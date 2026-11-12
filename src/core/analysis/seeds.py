@@ -101,3 +101,33 @@ def aggregate_convergence(curves: dict[int, dict]) -> pd.DataFrame:
                 )
             )
     return pd.DataFrame(rows)
+
+
+def replace_methods(old: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
+    """Replace the (optimizer, method) runs of old with the ones in new.
+
+    Used to rerun some methods of a seed without recomputing the others. Works on
+    the performance table (one row per run) and the convergence history (one row
+    per iteration) alike. Runs keep their place in old, runs that only new has go
+    at the end, and the result keeps old's column order.
+
+    Args:
+        old: The seed's existing table.
+        new: The table for the rerun methods, with the same columns.
+
+    Returns:
+        The merged table.
+
+    Raises:
+        ValueError: If the two tables have different columns.
+    """
+    if set(old.columns) != set(new.columns):
+        raise ValueError(f"columns differ: {sorted(old.columns)} vs {sorted(new.columns)}")
+    keys = ["optimizer", "method"]
+    old_runs = list(dict.fromkeys(old[keys].itertuples(index=False, name=None)))
+    new_runs = list(dict.fromkeys(new[keys].itertuples(index=False, name=None)))
+    parts = []
+    for run in old_runs + [r for r in new_runs if r not in old_runs]:
+        src = new if run in new_runs else old
+        parts.append(src[(src["optimizer"] == run[0]) & (src["method"] == run[1])])
+    return pd.concat(parts, ignore_index=True)[list(old.columns)]

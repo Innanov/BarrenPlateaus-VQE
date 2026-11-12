@@ -16,20 +16,28 @@ Output in results/<molecule>/vqe_seeds/<run_name>/seed_<seed>/:
 run_name defaults to the settings the seeds must share, for example
 adam_depth4_iters1000, so every seed of one setting lands in the same folder.
 
+Running only some --methods on a seed that already exists replaces just those
+methods and keeps the others (see save_seed), so one method can be rerun after a
+fix without recomputing the rest.
+
 Usage:
     python scripts/compute_vqe_analysis.py --molecule LiH --optimizers adam --seed 0
     python scripts/compute_vqe_analysis.py --molecule LiH --optimizers adam --seed 1
+    python scripts/compute_vqe_analysis.py --molecule LiH --optimizers adam --seed 0 --methods sea
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 
+import pandas as pd
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.core.analysis import metrics  # noqa: E402
+from src.core.analysis import metrics, replace_methods  # noqa: E402
 from src.core.backend import active_backend  # noqa: E402
 from src.core.backend import load_hamiltonian, verify_against_fci  # noqa: E402
 from src.core.methods import METHODS, MethodConfig, run_method  # noqa: E402
@@ -112,7 +120,10 @@ def main(argv=None) -> int:
         f"device={active_backend()}  optimizers={args.optimizers}  methods={args.methods}  "
         f"-> {out_dir}"
     )
-    if os.path.isfile(os.path.join(out_dir, "performance_table_all_methods.csv")):
+    if is_partial_rerun(out_dir, args):
+        check_same_settings(out_dir, args)
+        prog.note(f"seed_{args.seed} exists in {args.run_name}, replacing only {args.methods}.")
+    elif os.path.isfile(os.path.join(out_dir, "performance_table_all_methods.csv")):
         prog.note(f"seed_{args.seed} already exists in {args.run_name}, overwriting it.")
 
     results_by_opt = {}
@@ -147,13 +158,8 @@ def main(argv=None) -> int:
             )
         results_by_opt[opt] = results
 
-    # Save tables + provenance
-    io.write_csv(os.path.join(out_dir, "performance_table_all_methods.csv"), rows)
-    io.write_run_parameters(out_dir, dict(vars(args), device=active_backend()), data_dir="data")
+    save_seed(out_dir, args, rows, results_by_opt)
     prog.step("saved performance_table_all_methods.csv + run_parameters.json")
-
-    # Save per-iteration histories (for the convergence curves)
-    io.write_convergence_csv(os.path.join(out_dir, "convergence_history.csv"), results_by_opt)
     prog.step("saved convergence_history.csv")
 
     prog.note(
@@ -161,6 +167,78 @@ def main(argv=None) -> int:
         f'python scripts/plot_vqe_analysis.py --dir "{out_dir}"'
     )
     return 0
+
+
+# run_parameters.json keys that may differ between a seed's first run and a rerun.
+_RERUN_KEYS = {"methods", "device", "_provenance"}
+
+
+def is_partial_rerun(out_dir: str, args) -> bool:
+    """True when the seed already has results and this call runs only some methods."""
+    done = os.path.isfile(os.path.join(out_dir, "performance_table_all_methods.csv"))
+    return done and set(args.methods) != set(METHODS)
+
+
+def check_same_settings(out_dir: str, args) -> None:
+    """Refuse a partial rerun whose settings differ from the seed's existing run.
+
+    The run name covers the optimizers, depth, iterations, geometry and tag but
+    not, for example, warm_iters, so the full parameter sets are compared here.
+    """
+    with open(os.path.join(out_dir, "run_parameters.json"), encoding="utf-8") as fh:
+        old = json.load(fh)
+    new = dict(vars(args))
+    diff = sorted(k for k in (set(old) | set(new)) - _RERUN_KEYS if old.get(k) != new.get(k))
+    if diff:
+        raise SystemExit(f"{out_dir} was run with different settings in: {diff}")
+
+
+def _read_exact(path: str) -> pd.DataFrame:
+    """Read a CSV so its floats round-trip exactly.
+
+    pandas' default parser can change the last bit of a float, which would alter
+    the methods a partial rerun is meant to keep.
+    """
+    return pd.read_csv(path, float_precision="round_trip")
+
+
+def save_seed(out_dir: str, args, rows, results_by_opt) -> None:
+    """Write the seed's performance table, convergence history and run parameters.
+
+    A partial rerun (is_partial_rerun) replaces only the rerun methods' rows in
+    the existing tables and keeps the other methods. Its run_parameters.json then
+    lists every method the folder holds, in the usual order, and its _provenance
+    adds the rerun methods to rerun_methods, so the history stays visible without
+    changing the settings that aggregate_vqe_seeds.py compares across seeds.
+    Otherwise the tables are written from scratch.
+    """
+    perf_path = os.path.join(out_dir, "performance_table_all_methods.csv")
+    conv_path = os.path.join(out_dir, "convergence_history.csv")
+    params = dict(vars(args), device=active_backend())
+    provenance = {}
+
+    if is_partial_rerun(out_dir, args):
+        new_conv_path = conv_path + ".rerun"
+        io.write_convergence_csv(new_conv_path, results_by_opt)
+        new_conv = _read_exact(new_conv_path)
+        os.remove(new_conv_path)
+        perf = replace_methods(_read_exact(perf_path), pd.DataFrame(rows))
+        conv = replace_methods(_read_exact(conv_path), new_conv)
+
+        with open(os.path.join(out_dir, "run_parameters.json"), encoding="utf-8") as fh:
+            old = json.load(fh)
+        held = set(old["methods"]) | set(args.methods)
+        params["methods"] = [m for m in METHODS if m in held]
+        reruns = old.get("_provenance", {}).get("rerun_methods", [])
+        provenance["rerun_methods"] = reruns + [list(args.methods)]
+
+        perf.to_csv(perf_path, index=False)
+        conv.to_csv(conv_path, index=False)
+    else:
+        io.write_csv(perf_path, rows)
+        io.write_convergence_csv(conv_path, results_by_opt)
+
+    io.write_run_parameters(out_dir, params, data_dir="data", provenance=provenance)
 
 
 if __name__ == "__main__":
