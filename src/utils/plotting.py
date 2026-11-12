@@ -58,7 +58,14 @@ def _plot_curve(ax, r, **line_kw):
     std = getattr(r, "energy_std", None)
     if std is not None:
         std = np.asarray(std, dtype=float)
-        ax.fill_between(x, y - std, y + std, color=line.get_color(), alpha=_STD_ALPHA, linewidth=0)
+        ax.fill_between(
+            x,
+            y - std,
+            y + std,
+            color=line.get_color(),
+            alpha=_STD_ALPHA,
+            linewidth=0,
+        )
 
 
 def write_convergence_figures(
@@ -89,17 +96,29 @@ def write_convergence_figures(
     if len(results_by_opt) == 1:
         results = next(iter(results_by_opt.values()))
         plot_convergence(
-            results, conv_path, fci_energy=fci_energy, title=label, max_iters=max_iters
+            results,
+            conv_path,
+            fci_energy=fci_energy,
+            title=label,
+            max_iters=max_iters,
         )
         return [conv_path]
     opt_list = " vs ".join(o.upper() for o in results_by_opt)
     title = f"{label}: {opt_list}" if label else None
     overlay_path = os.path.join(out_dir, "energy_convergence_overlay.pdf")
     plot_convergence_grid(
-        results_by_opt, conv_path, fci_energy=fci_energy, title=title, max_iters=max_iters
+        results_by_opt,
+        conv_path,
+        fci_energy=fci_energy,
+        title=title,
+        max_iters=max_iters,
     )
     plot_convergence_optimizers(
-        results_by_opt, overlay_path, fci_energy=fci_energy, title=title, max_iters=max_iters
+        results_by_opt,
+        overlay_path,
+        fci_energy=fci_energy,
+        title=title,
+        max_iters=max_iters,
     )
     return [conv_path, overlay_path]
 
@@ -194,7 +213,12 @@ def plot_convergence_grid(
             for r in results_by_opt[opt]:
                 _plot_curve(ax, r, color=method_color.get(r.method, "gray"), linewidth=1.0)
             if fci_energy is not None:
-                ax.axhline(fci_energy, color="black", linestyle=(0, (1, 1)), linewidth=0.8)
+                ax.axhline(
+                    fci_energy,
+                    color="black",
+                    linestyle=(0, (1, 1)),
+                    linewidth=0.8,
+                )
             if max_iters is not None:
                 ax.set_xlim(0, max_iters)
             ax.set_title(opt.upper(), fontsize=8)
@@ -205,7 +229,14 @@ def plot_convergence_grid(
         handles = [Line2D([0], [0], color=method_color[m], lw=1.4, label=m) for m in methods]
         if fci_energy is not None:
             handles.append(
-                Line2D([0], [0], color="black", lw=0.8, linestyle=(0, (1, 1)), label="FCI")
+                Line2D(
+                    [0],
+                    [0],
+                    color="black",
+                    lw=0.8,
+                    linestyle=(0, (1, 1)),
+                    label="FCI",
+                )
             )
         fig.legend(
             handles=handles,
@@ -277,7 +308,8 @@ def plot_convergence_optimizers(
         ax.set_ylabel("energy (Ha)")
         # Title above the method legend, which is itself above the axes.
         ax.set_title(
-            title or "VQE convergence: " + " vs ".join(o.upper() for o in opt_names), pad=22
+            title or "VQE convergence: " + " vs ".join(o.upper() for o in opt_names),
+            pad=22,
         )
 
         # Legend 1: method colours (outside, above the axes).
@@ -307,10 +339,69 @@ def plot_convergence_optimizers(
         ]
         if fci_energy is not None:
             style_handles.append(
-                Line2D([0], [0], color="black", lw=0.8, linestyle=(0, (1, 1)), label="FCI")
+                Line2D(
+                    [0],
+                    [0],
+                    color="black",
+                    lw=0.8,
+                    linestyle=(0, (1, 1)),
+                    label="FCI",
+                )
             )
         ax.legend(
             handles=style_handles,
+            loc="upper left",
+            bbox_to_anchor=(1.02, 1.0),
+            frameon=False,
+            fontsize=6,
+        )
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+    return path
+
+
+def plot_gradient_comparison(curves, path: str, title: str | None = None) -> str:
+    """Plot the gradient variance of several methods versus depth on one log axis.
+
+    Each curve is coloured by its VQE method, in the same colour order as the
+    convergence figures. Random-parameter samples are solid lines, warm-start
+    samples (a method's handoff point) are dashed with markers, since they are
+    measured at a few depths only.
+
+    Args:
+        curves: Iterable of (label, method, start, points), where method is a
+            name in the VQE method order, start is 'random' or 'warm_start', and
+            points have n_layers and mean_grad_var attributes.
+        path: Destination figure path (.pdf).
+        title: Optional plot title.
+
+    Returns:
+        The written path.
+    """
+    order = ["standard", "local_global", "adiabatic", "sea", "pretrained"]
+    cmap = plt.get_cmap("tab10")
+    with plt.rc_context(IEEE_STYLE):
+        fig, ax = plt.subplots(figsize=(4.2, 2.8))
+        for label, method, start, points in curves:
+            pts = sorted(points, key=lambda p: p.n_layers)
+            color = cmap(order.index(method) % 10) if method in order else "gray"
+            style = dict(ls="--", marker="o", markersize=3) if start == "warm_start" else {}
+            ax.plot(
+                [p.n_layers for p in pts],
+                [p.mean_grad_var for p in pts],
+                color=color,
+                label=label,
+                **style,
+            )
+        ax.set_yscale("log")
+        ax.set_xlabel("number of layers")
+        ax.set_ylabel(r"Var[$\partial_\theta C$]")
+        ax.set_title(title or "Gradient variance by method")
+        ax.xaxis.set_major_locator(MultipleLocator(5))
+        ax.xaxis.set_minor_locator(MultipleLocator(1))
+        ax.set_xlim(left=0)
+        ax.grid(axis="x", which="major", linewidth=0.3, alpha=0.5)
+        ax.legend(
             loc="upper left",
             bbox_to_anchor=(1.02, 1.0),
             frameon=False,
@@ -345,7 +436,12 @@ def plot_gradient_scaling(points, path: str, title: str | None = None) -> str:
         fig, ax = plt.subplots(figsize=_FIGSIZE)
         (line,) = ax.plot(depths, var, marker="o", markersize=3)
         ax.fill_between(
-            depths, lower, var + err, color=line.get_color(), alpha=_STD_ALPHA, linewidth=0
+            depths,
+            lower,
+            var + err,
+            color=line.get_color(),
+            alpha=_STD_ALPHA,
+            linewidth=0,
         )
         ax.set_yscale("log")
         ax.set_xlabel("number of layers")
