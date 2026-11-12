@@ -1,0 +1,29 @@
+{
+  "molecule": "BeH2",
+  "geometry": "equilibrium",
+  "depth": 4,
+  "optimizers": [
+    "adam"
+  ],
+  "iters": 1000,
+  "warm_iters": 150,
+  "methods": [
+    "standard",
+    "local_global",
+    "adiabatic",
+    "sea",
+    "pretrained"
+  ],
+  "seed": 1,
+  "run_name": "adam_depth4_iters1000",
+  "tag": null,
+  "device": "lightning.qubit",
+  "_provenance": {
+    "data_dir": "F:\\QML-Barren Plateaus\\code\\BarrenPlateaus-VQE\\data",
+    "rerun_methods": [
+      [
+        "sea"
+      ]
+    ]
+  }
+}

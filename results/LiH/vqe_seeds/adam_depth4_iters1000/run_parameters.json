@@ -1,0 +1,29 @@
+{
+  "molecule": "LiH",
+  "geometry": "equilibrium",
+  "depth": 4,
+  "optimizers": [
+    "adam"
+  ],
+  "iters": 1000,
+  "warm_iters": 150,
+  "methods": [
+    "standard",
+    "local_global",
+    "adiabatic",
+    "sea",
+    "pretrained"
+  ],
+  "run_name": "adam_depth4_iters1000",
+  "tag": null,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "devices": [
+    "lightning.qubit"
+  ]
+}
