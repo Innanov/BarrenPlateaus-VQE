@@ -1,18 +1,18 @@
 """Local-Global warm-start VQE and the local-cost observable it uses.
 
 The method runs VQE in two stages. First it trains on a LOCAL cost (a sum of
-single-qubit terms) that has milder barren plateaus, to move the parameters into a
-good region cheaply. Then it switches to the full molecular Hamiltonian and refines
-to the energy. The same ansatz and optimizer carry across the switch, so the second
-stage picks up where the first left off.
+single-qubit terms) that has milder barren plateaus, to move the parameters into
+a good region cheaply. Then it switches to the full molecular Hamiltonian and
+refines to the energy. The same ansatz and optimizer carry across the switch, so
+the second stage picks up where the first left off.
 
 The local cost is anchored on the Hartree-Fock reference state (see
-local_cost_observable), which uses only information known before solving. The anchor
-must be a product state, which the HF state is.
+local_cost_observable), which uses only information known before solving. The
+anchor must be a product state, which the HF state is.
 
 This generalizes qubap's VQE_shift [1], replacing qubap's global2local
-Pauli-splitting (whose minimum is generally not the target state) with the HF local
-cost. The local-cost idea is from [2].
+Pauli-splitting (whose minimum is generally not the target state) with the HF
+local cost. The local-cost idea is from [2].
 
 References:
     [1] qubap, https://github.com/jgidi/quantum-barren-plateaus
@@ -50,22 +50,24 @@ _PAULI_OP = {"X": qml.PauliX, "Y": qml.PauliY, "Z": qml.PauliZ}
 def local_global(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     """Run Local-Global VQE: warm-start on a local cost, then refine on energy.
 
-    Stage one runs config.warm_iters steps on the Hartree-Fock local cost. Stage two
-    runs config.max_iters steps on the full molecular Hamiltonian, continuing from
-    the same parameters and optimizer state (no reset). warm_iters is extra
+    Stage one runs config.warm_iters steps on the Hartree-Fock local cost. Stage
+    two runs config.max_iters steps on the full molecular Hamiltonian, continuing
+    from the same parameters and optimizer state (no reset). warm_iters is extra
     preparation on top of max_iters, so the main (energy) stage is max_iters long
     for every method, which keeps the methods comparable.
 
     Args:
-        system: The molecule to solve (provides the Hamiltonian, qubit count, and
-            the Hartree-Fock reference state used for the local cost).
-        config: Run settings (ansatz depth, optimizer, seed, warm_iters, max_iters).
+        system: The molecule to solve (provides the Hamiltonian, qubit count,
+            and the Hartree-Fock reference state used for the local cost).
+        config: Run settings (ansatz depth, optimizer, seed, warm_iters,
+            max_iters).
 
     Returns:
-        A MethodResult. energy_history is both stages concatenated;
+        A MethodResult. energy_history is both stages concatenated.
         energy_history_global re-scores every parameter set against the full
-        Hamiltonian (so it is comparable across the switch); stage_boundaries marks
-        the handoff index; final_energy is the full-Hamiltonian energy at the end.
+        Hamiltonian (so it is comparable across the switch). stage_boundaries
+        marks the handoff index. final_energy is the full-Hamiltonian energy at
+        the end.
     """
     n = system.n_qubits
     ansatz = EfficientSU2(n, d=config.depth)
@@ -107,7 +109,7 @@ def local_global(system: MolecularSystem, config: MethodConfig) -> MethodResult:
 
 
 def local_cost_observable(reference_state, n_qubits: int) -> qml.Hamiltonian:
-    """Build a local (single-qubit-sum) cost observable minimized at the reference.
+    """Build a local (single-qubit-sum) cost observable, minimal at the reference.
 
     Returns the observable
 
@@ -115,10 +117,10 @@ def local_cost_observable(reference_state, n_qubits: int) -> qml.Hamiltonian:
 
     where sigma_j^ref is qubit j's reduced density matrix of the reference state.
     Minimizing <psi|O_L|psi> pushes each qubit's marginal toward the reference's.
-    Being a sum of single-qubit terms, its gradients vanish only polynomially, not
-    exponentially, which is what makes it a useful warm-start cost (the local-cost
-    idea of [2] in the module docstring). Only the single-qubit (2x2) marginals are
-    used, so this is cheap even for many qubits.
+    Being a sum of single-qubit terms, its gradients vanish only polynomially,
+    not exponentially, which is what makes it a useful warm-start cost (the
+    local-cost idea of [2] in the module docstring). Only the single-qubit (2x2)
+    marginals are used, so this is cheap even for many qubits.
 
     Pass a product state as the reference (e.g. the Hartree-Fock state): O_L is a
     sum of independent per-qubit terms (see the formula above), so it can only

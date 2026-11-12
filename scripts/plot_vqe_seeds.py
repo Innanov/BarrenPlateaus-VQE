@@ -11,8 +11,8 @@ Output in results/<molecule>/vqe_seeds/<run_name>/:
     energy_convergence_overlay.pdf      only when several optimizers were run
 
 Usage:
-    python scripts/plot_vqe_seeds.py --dir results/LiH/vqe_seeds/adam_depth4_iters1000
-    python scripts/plot_vqe_seeds.py --molecule LiH --run-name adam_depth4_iters1000
+    python scripts/plot_vqe_seeds.py --dir results/LiH/vqe_seeds/<run_name>
+    python scripts/plot_vqe_seeds.py -m LiH --run-name adam_depth4_iters1000
 """
 
 from __future__ import annotations
@@ -42,7 +42,10 @@ def parse_args(argv=None):
     )
     p.add_argument(
         "--run-name",
-        help="Run name under results/<molecule>/vqe_seeds/. Optional when there is only one.",
+        help=(
+            "Run name under results/<molecule>/vqe_seeds/. "
+            "Optional when there is only one."
+        ),
     )
     return p.parse_args(argv)
 
@@ -54,7 +57,8 @@ def main(argv=None) -> int:
     conv_csv = os.path.join(seeds_dir, "convergence_mean_std.csv")
     if not os.path.isfile(conv_csv):
         raise SystemExit(
-            f"no convergence_mean_std.csv in {seeds_dir}, run aggregate_vqe_seeds.py"
+            f"no convergence_mean_std.csv in {seeds_dir}, "
+            "run aggregate_vqe_seeds.py"
         )
 
     fci, label = io.system_info(seeds_dir)

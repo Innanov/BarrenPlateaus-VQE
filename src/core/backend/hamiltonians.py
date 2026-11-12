@@ -34,7 +34,7 @@ _PAULI = {"X": qml.PauliX, "Y": qml.PauliY, "Z": qml.PauliZ}
 
 @dataclass
 class MolecularSystem:
-    """One molecule/geometry: its qubit Hamiltonian, FCI energy, and ground state."""
+    """One molecule/geometry: qubit Hamiltonian, FCI energy, and ground state."""
 
     molecule: str
     geometry: str
@@ -59,9 +59,9 @@ class MolecularSystem:
         """Hartree-Fock occupation vector: 1 on the lowest `electrons` qubits.
 
         Under Jordan-Wigner the HF determinant occupies the lowest-energy
-        spin-orbitals, which are qubits 0..electrons-1. This is the easy-to-prepare
-        reference state (a single product state) used to anchor the adiabatic and
-        local_global warm-starts.
+        spin-orbitals, which are qubits 0..electrons-1. This is the
+        easy-to-prepare reference state (a single product state) used to anchor
+        the adiabatic and local_global warm-starts.
         """
         if self.electrons is None:
             raise ValueError(
@@ -93,7 +93,10 @@ class MolecularSystem:
 
     @property
     def ground_energy(self) -> float:
-        """Exact lowest eigenvalue (verify_against_fci checks it vs fci_energy)."""
+        """Exact lowest eigenvalue.
+
+        verify_against_fci checks it vs fci_energy.
+        """
         if self._ground_energy is None:
             self._solve_ground()
         return self._ground_energy

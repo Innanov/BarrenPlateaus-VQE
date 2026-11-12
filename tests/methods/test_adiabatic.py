@@ -1,11 +1,12 @@
 """Tests for the adiabatic staged-anneal VQE.
 
-This method generalizes qubap's VQE_adiabatic. qubap ramps the mixing coefficient
-s continuously per iteration, while we hold H fixed across adiabatic_steps discrete
-stages, which is a superset: setting adiabatic_steps = max_iters gives one stage
-per iteration and recovers qubap's per-iteration granularity as a limit. These
-tests pin the schedule endpoints (s=0 pure local, s=1 pure global, exactly qubap's
-ramp bounds), the stage-count clamping, and that superset limit.
+This method generalizes qubap's VQE_adiabatic. qubap ramps the mixing
+coefficient s continuously per iteration, while we hold H fixed across
+adiabatic_steps discrete stages, which is a superset: setting
+adiabatic_steps = max_iters gives one stage per iteration and recovers qubap's
+per-iteration granularity as a limit. These tests pin the schedule endpoints
+(s=0 pure local, s=1 pure global, exactly qubap's ramp bounds), the stage-count
+clamping, and that superset limit.
 
 Run with: pytest tests/methods/test_adiabatic.py
 """
@@ -26,7 +27,8 @@ def test_hf_reference_hamiltonian_ground_state_is_hf_determinant(
     four_qubit_system,
 ):
     """H_0's non-degenerate ground state is the HF occupation basis state, so the
-    anneal starts from an easy-to-prepare reference and not the exact ground state.
+    anneal starts from an easy-to-prepare reference and not the exact ground
+    state.
     """
     n = four_qubit_system.n_qubits
     h0 = hf_reference_hamiltonian(four_qubit_system.hf_occupation)

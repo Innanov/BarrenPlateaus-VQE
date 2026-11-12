@@ -64,7 +64,10 @@ class Ansatz:
     n_params: int
 
     def apply(self, params) -> None:  # pragma: no cover - interface
-        """Build the ansatz gates for the given parameter vector (subclass provides)."""
+        """Build the ansatz gates for the given parameter vector.
+
+        The subclass provides this.
+        """
         raise NotImplementedError
 
     def random_params(
@@ -146,16 +149,16 @@ class MPS(Ansatz):
     A matrix product state trained classically is a chain of two-qubit unitary
     matrices. KAK-decomposing each matrix turns it into gates (a single-qubit
     rotation on each qubit, the three Ising interactions Rxx, Ryy, Rzz, then a
-    single-qubit rotation on each qubit), and those gates land on the main diagonal
-    of a brick-wall circuit. That is where the name comes from: the "diagonal"
-    blocks are the ones carrying the compiled state, and any extra blocks sit on
-    the diagonals beside them. This class builds that circuit directly with the
-    same gates, leaving their angles trainable.
+    single-qubit rotation on each qubit), and those gates land on the main
+    diagonal of a brick-wall circuit. That is where the name comes from: the
+    "diagonal" blocks are the ones carrying the compiled state, and any extra
+    blocks sit on the diagonals beside them. This class builds that circuit
+    directly with the same gates, leaving their angles trainable.
 
     The diagonal flag picks the stage:
 
-    - diagonal=True (warm-up): the diagonal staircase alone, on neighbouring qubits
-      (0,1),(1,2),...,(n-2,n-1), the compiled MPS.
+    - diagonal=True (warm-up): the diagonal staircase alone, on neighbouring
+      qubits (0,1),(1,2),...,(n-2,n-1), the compiled MPS.
     - diagonal=False (full): everything the warm-up has, plus off-diagonal blocks
       interleaved around the staircase. Each off-diagonal block acts on a pair of
       neighbouring qubits: an Ry on each of the two, then a controlled-X between
@@ -283,16 +286,17 @@ class SEA(Ansatz):
         2. the entangling layer V, a CNOT from each A[i] to B[i],
         3. the local basis changing layer, U2 on A and U3 on B.
 
-    U1, U2 and U3 are alternating layered ansatze (ALT), the choice the paper uses
-    for its VQE runs. Each ALT starts with an Ry on every qubit, then repeats the
-    following block d times: CZ on the even-indexed neighbour pairs, Ry on every
-    qubit, then CZ on the odd-indexed pairs followed by an Ry on each of those two
-    qubits (the paper's ALT figure). Every Ry has its own parameter, so for an even
-    half N the count is 3N + 6(N-1)d, the paper's Table S1.
+    U1, U2 and U3 are alternating layered ansatze (ALT), the choice the paper
+    uses for its VQE runs. Each ALT starts with an Ry on every qubit, then
+    repeats the following block d times: CZ on the even-indexed neighbour pairs,
+    Ry on every qubit, then CZ on the odd-indexed pairs followed by an Ry on each
+    of those two qubits (the paper's ALT figure). Every Ry has its own
+    parameter, so for an even half N the count is 3N + 6(N-1)d, the paper's
+    Table S1.
 
-    qubap's port of this ansatz gives the two Ry gates after each odd-pair CZ one
-    shared parameter and sizes the parameter vector for unshared ones, which leaves
-    some entries unused. This class follows the paper instead.
+    qubap's port of this ansatz gives the two Ry gates after each odd-pair CZ
+    one shared parameter and sizes the parameter vector for unshared ones, which
+    leaves some entries unused. This class follows the paper instead.
 
     Attributes:
         n_qubits: Number of qubits. Must be even.
@@ -332,8 +336,8 @@ class SEA(Ansatz):
     def _alt(self, params, wires) -> None:
         """Apply one ALT to the given wires.
 
-        params is a flat vector of length self._alt_n_params(len(wires), d). wires is
-        the subsystem it acts on.
+        params is a flat vector of length self._alt_n_params(len(wires), d).
+        wires is the subsystem it acts on.
         """
         qubits = len(wires)
         idx = 0

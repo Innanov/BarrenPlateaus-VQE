@@ -137,14 +137,18 @@ def main(argv=None) -> int:
             if start == "warm_start":
                 for p in points:
                     print(
-                        f"    depth {p.n_layers:>2}: E - E_FCI at the handoff {p.mean_energy_error:.2e} Ha"
+                        f"    depth {p.n_layers:>2}: E - E_FCI at the handoff "
+                        f"{p.mean_energy_error:.2e} Ha"
                     )
     with open(
         os.path.join(next(iter(runs.values())), "scaling_analysis_data.csv"),
         encoding="utf-8",
     ) as fh:
         first = next(csv.DictReader(fh))
-    title = f"{args.molecule} ({first['n_qubits']} qubits): gradient variance by method"
+    title = (
+        f"{args.molecule} ({first['n_qubits']} qubits): "
+        "gradient variance by method"
+    )
     out = os.path.join(gs_dir, "gradient_comparison.pdf")
     plots.plot_gradient_comparison(curves, out, title=title)
     print(f"wrote {out}")

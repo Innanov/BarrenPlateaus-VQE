@@ -44,21 +44,21 @@ def adiabatic(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     """Adiabatic VQE: a staged anneal from H_0 to H_global, warm-started.
 
     The schedule is split into adiabatic_steps stages (default 10, an arbitrary
-    choice). Within each stage the interpolated
-    Hamiltonian is held FIXED while the optimizer runs its share of the iterations,
-    each stage warm-started from the previous. The max_iters total is spread evenly
-    across the stages (so the total matches every other method):
+    choice). Within each stage the interpolated Hamiltonian is held FIXED while
+    the optimizer runs its share of the iterations, each stage warm-started from
+    the previous. The max_iters total is spread evenly across the stages (so the
+    total matches every other method):
 
         s_i = i / (n_stages - 1),   H(s_i) = (1 - s_i) H_0 + s_i H_global
 
     The optimizer is reused across stages without a reset, so its state carries
     through the handoffs and the trace stays smooth.
 
-    The anneal starts from the Hartree-Fock reference Hamiltonian H_0, whose ground
-    state is the HF occupation basis state, and ends at the true
-    molecular Hamiltonian. The max_iters iterations are spread across the stages so they sum
-    to exactly max_iters (the first max_iters % n_stages stages get one extra),
-    keeping the budget equal to every other method.
+    The anneal starts from the Hartree-Fock reference Hamiltonian H_0, whose
+    ground state is the HF occupation basis state, and ends at the true molecular
+    Hamiltonian. The max_iters iterations are spread across the stages so they
+    sum to exactly max_iters (the first max_iters % n_stages stages get one
+    extra), keeping the budget equal to every other method.
     """
     n = system.n_qubits
     ansatz = EfficientSU2(n, d=config.depth)
@@ -117,13 +117,13 @@ def adiabatic(system: MolecularSystem, config: MethodConfig) -> MethodResult:
 def hf_reference_hamiltonian(occupation) -> qml.Hamiltonian:
     """Hartree-Fock reference Hamiltonian whose ground state is |occupation>.
 
-    A sum of single-qubit Z terms, H_0 = sum_j sign_j Z_j, with sign_j = +1 on the
-    occupied qubits and -1 on the empty ones. Because Z|1> = -|1> and Z|0> = +|0>,
-    the sign_j Z_j term is lowest when qubit j is in its HF state (|1> if occupied,
-    |0> if empty). The basis state |occupation> puts every qubit in that state at
-    once, so it is the exact, non-degenerate ground state of H_0. This is the
-    easy-to-prepare anchor of the adiabatic schedule and depends only on the
-    reference occupation, not on the solution.
+    A sum of single-qubit Z terms, H_0 = sum_j sign_j Z_j, with sign_j = +1 on
+    the occupied qubits and -1 on the empty ones. Because Z|1> = -|1> and
+    Z|0> = +|0>, the sign_j Z_j term is lowest when qubit j is in its HF state
+    (|1> if occupied, |0> if empty). The basis state |occupation> puts every
+    qubit in that state at once, so it is the exact, non-degenerate ground state
+    of H_0. This is the easy-to-prepare anchor of the adiabatic schedule and
+    depends only on the reference occupation, not on the solution.
 
     Args:
         occupation: Length-n array of 0/1 HF occupations (qubit j occupied iff 1).

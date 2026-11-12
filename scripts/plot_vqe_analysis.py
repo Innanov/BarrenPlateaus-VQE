@@ -6,10 +6,10 @@ Rebuilds the energy-convergence figures from the convergence_history.csv saved
 by compute_vqe_analysis.py. Never recomputes physics, so re-run any time to
 restyle figures. For the mean +- std over seeds use plot_vqe_seeds.py.
 
-Usage:
-    python scripts/plot_vqe_analysis.py --dir results/LiH/vqe_seeds/adam_depth4_iters1000/seed_0
-    python scripts/plot_vqe_analysis.py --dir results/H2/vqe_analysis/<timestamp>
-    python scripts/plot_vqe_analysis.py --molecule H2        # newest results/H2/vqe_analysis run
+Usage, python scripts/plot_vqe_analysis.py followed by:
+    --dir results/LiH/vqe_seeds/adam_depth4_iters1000/seed_0
+    --dir results/H2/vqe_analysis/<timestamp>
+    -m H2      # newest H2 vqe_analysis run
 """
 
 from __future__ import annotations
@@ -35,7 +35,10 @@ def parse_args(argv=None):
     p.add_argument(
         "--molecule",
         "-m",
-        help="Render the newest results/<molecule>/vqe_analysis run (runs made before seeding).",
+        help=(
+            "Render the newest results/<molecule>/vqe_analysis run "
+            "(runs made before seeding)."
+        ),
     )
     p.add_argument(
         "--tag",
@@ -48,9 +51,9 @@ def parse_args(argv=None):
 def main(argv=None) -> int:
     """Render the convergence figures from a saved run directory.
 
-    The convergence x-axis is capped at the run's main iteration budget (read from
-    run_parameters.json), so a two-stage method's warm-up tail does not stretch the
-    axis past the others.
+    The convergence x-axis is capped at the run's main iteration budget (read
+    from run_parameters.json), so a two-stage method's warm-up tail does not
+    stretch the axis past the others.
     """
     args = parse_args(argv)
     atype = "vqe_analysis" if not args.tag else f"vqe_analysis_{args.tag}"

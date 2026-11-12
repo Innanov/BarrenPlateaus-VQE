@@ -1,9 +1,9 @@
-"""Shared method infrastructure: config and result containers, cost, loop, registry.
+"""Shared method infrastructure: config/result containers, cost, loop, registry.
 
 MethodConfig/MethodResult are the input settings and output record every method
 uses. _make_cost builds the QNode cost and _optimize runs the iteration loop, so
-each method is a thin wrapper that assembles a Hamiltonian and calls these. METHODS
-maps each method name to its function and run_method dispatches by name.
+each method is a thin wrapper that assembles a Hamiltonian and calls these.
+METHODS maps each method name to its function and run_method dispatches by name.
 """
 
 from __future__ import annotations
@@ -22,15 +22,16 @@ from ..backend import MolecularSystem, Optimizer, make_device
 
 @dataclass
 class MethodConfig:
-    """Input configuration for a method run: ansatz depth, optimizer, and iteration counts.
+    """Input configuration for a method run: ansatz depth, optimizer, iterations.
 
     Attributes:
         depth: Ansatz depth (kept identical across methods for a comparison).
         optimizer: Optimizer name ('adam', 'qng', or 'adagrad').
         optimizer_kwargs: Extra keyword args for the optimizer.
-        max_iters: Iterations of the main stage, the SAME for every method so their
-            main-stage convergence compares iteration-for-iteration. Single-stage
-            methods run this once, and adiabatic distributes it across its stages.
+        max_iters: Iterations of the main stage, the SAME for every method so
+            their main-stage convergence compares iteration-for-iteration.
+            Single-stage methods run this once, and adiabatic distributes it
+            across its stages.
         seed: RNG seed for the initial parameters (reproducibility).
         warm_iters: Iterations of the warm-up stage for the two-stage methods
             (local_global's local-cost warm-up, pretrained's MPS pre-training),
@@ -55,7 +56,7 @@ class MethodConfig:
 
 @dataclass
 class MethodResult:
-    """What a method run returns: the converged solution plus its convergence record.
+    """What a method run returns: the converged solution and convergence record.
 
     Carries the final energy, parameters, and ansatz (for metrics like energy
     error and fidelity) and the per-iteration energy and parameter histories (for

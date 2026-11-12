@@ -25,7 +25,7 @@ Each JSON contains:
 
 Usage:
     python scripts/fetch_hamiltonians.py
-    python scripts/fetch_hamiltonians.py --molecules H2 LiH --output data/hamiltonians
+    python scripts/fetch_hamiltonians.py -m H2 LiH -o data/hamiltonians
     python scripts/fetch_hamiltonians.py --all-bondlengths --molecules H2
     python scripts/fetch_hamiltonians.py --list
 
@@ -98,7 +98,8 @@ DEFAULT_BASIS = "STO-3G"
 
 def get_available_bondlengths(molname, basis, qml):
     """
-    Query PennyLane's dataset registry and return (actual_basis, sorted bond lengths).
+    Query PennyLane's dataset registry and return (actual_basis, sorted bond
+    lengths).
 
     If the requested basis is not available for this molecule, falls back to the
     first available basis (e.g. He2 only has 6-31G, not STO-3G).
@@ -124,7 +125,8 @@ def pick_geometries(bondlengths):
     (geometry_label, bondlength) pairs to fetch:
 
       - Single entry  → [("equilibrium", bl)]
-      - Multiple      → equilibrium (middle/marked value) + stretched (last) + compressed (first)
+      - Multiple      → equilibrium (middle/marked value) + stretched (last)
+                        + compressed (first)
 
     The 'equilibrium' is the value closest to the physical equilibrium, which
     PennyLane marks by embedding a non-round number in an otherwise round scan
@@ -141,7 +143,8 @@ def pick_geometries(bondlengths):
 
     # Find the equilibrium: the "special" non-round value embedded in the scan.
     # Heuristic: the value with the most significant decimal digits that sits
-    # roughly in the lower half of the scan (equilibrium is never at the extremes).
+    # roughly in the lower half of the scan (equilibrium is never at the
+    # extremes).
     def decimal_places(v):
         s = f"{v:.10f}".rstrip("0")
         return len(s.split(".")[1]) if "." in s else 0
@@ -212,7 +215,8 @@ def hamiltonian_to_pauli_terms(hamiltonian, n_qubits, qml):
     Strategy (in order):
       1. Legacy .coeffs/.ops  : qml.Hamiltonian (fast, no matrix needed)
       2. Modern Sum of SProd  : LinearCombination / Sum (fast, no matrix needed)
-      3. qml.pauli_decompose  : last resort via full matrix (slow, small molecules only)
+      3. qml.pauli_decompose  : last resort via full matrix (slow, small
+                                molecules only)
     """
     # Strategy 1: legacy qml.Hamiltonian
     if hasattr(hamiltonian, "coeffs") and hasattr(hamiltonian, "ops"):
@@ -255,7 +259,10 @@ def hamiltonian_to_pauli_terms(hamiltonian, n_qubits, qml):
 def fetch_molecule(
     molname, bondlength, basis, output_dir, geometry_label, verbose, qml
 ):
-    """Download one molecule/bondlength and save to JSON. Returns True on success."""
+    """Download one molecule/bondlength and save to JSON.
+
+    Returns True on success.
+    """
     out_path = os.path.join(output_dir, f"{molname}_{geometry_label}.json")
 
     if os.path.exists(out_path):
@@ -265,7 +272,8 @@ def fetch_molecule(
 
     if verbose:
         print(
-            f"  Fetching {molname} ({geometry_label}, bond={bondlength} Å, basis={basis}) ..."
+            f"  Fetching {molname} ({geometry_label}, "
+            f"bond={bondlength} Å, basis={basis}) ..."
         )
 
     try:
@@ -367,7 +375,8 @@ def fetch_molecule(
 
     if verbose:
         print(
-            f"  Saved {out_path}  ({n_qubits} qubits, {len(pauli_terms)} Pauli terms, "
+            f"  Saved {out_path}  ({n_qubits} qubits, "
+            f"{len(pauli_terms)} Pauli terms, "
             f"FCI={fci_energy:.6f})"
         )
     return True
@@ -377,7 +386,10 @@ def fetch_molecule(
 
 
 def list_molecules(basis, qml):
-    """Print all available molecules and their bond lengths from the live registry."""
+    """Print all available molecules and their bond lengths.
+
+    The list comes from the live registry.
+    """
     print(f"Querying PennyLane dataset registry (preferred basis={basis}) ...")
     print(
         f"\n  {'Molecule':<10} {'Basis':<10} {'# bond lengths':<18} {'Range (Å)'}"
@@ -388,7 +400,8 @@ def list_molecules(basis, qml):
         if bls:
             note = " (fallback)" if actual_basis != basis else ""
             print(
-                f"  {mol:<10} {actual_basis:<10} {len(bls):<18} {bls[0]} to {bls[-1]}{note}"
+                f"  {mol:<10} {actual_basis:<10} {len(bls):<18} "
+                f"{bls[0]} to {bls[-1]}{note}"
             )
         else:
             print(f"  {mol:<10} {'(not found)'}")
@@ -399,7 +412,9 @@ def list_molecules(basis, qml):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Fetch molecular Hamiltonians from PennyLane Datasets → JSON cache"
+        description=(
+            "Fetch molecular Hamiltonians from PennyLane Datasets → JSON cache"
+        )
     )
     parser.add_argument(
         "--molecules",
@@ -423,7 +438,10 @@ def main():
     parser.add_argument(
         "--all-bondlengths",
         action="store_true",
-        help="Fetch every available bond length instead of just equilibrium/stretched/compressed",
+        help=(
+            "Fetch every available bond length instead of just "
+            "equilibrium/stretched/compressed"
+        ),
     )
     parser.add_argument(
         "--list",
@@ -470,7 +488,8 @@ def main():
         canonical = mol_lookup.get(name.upper())
         if canonical is None:
             print(
-                f"[WARN] Unknown molecule '{name}', skipping. Use --list to see options."
+                f"[WARN] Unknown molecule '{name}', skipping. "
+                "Use --list to see options."
             )
         elif name.upper() in skip_set:
             print(f"[SKIP] {canonical}")
@@ -501,7 +520,8 @@ def main():
 
         if actual_basis != args.basis and verbose:
             print(
-                f"  [INFO] {molname} not available in {args.basis}, using {actual_basis}"
+                f"  [INFO] {molname} not available in {args.basis}, "
+                f"using {actual_basis}"
             )
 
         if args.all_bondlengths:
@@ -511,7 +531,8 @@ def main():
 
         if verbose:
             print(
-                f"  Available bond lengths ({len(bondlengths)}): {bondlengths[0]} to {bondlengths[-1]}"
+                f"  Available bond lengths ({len(bondlengths)}): "
+                f"{bondlengths[0]} to {bondlengths[-1]}"
             )
             print(
                 f"  Fetching {len(geometries)} geometries: "

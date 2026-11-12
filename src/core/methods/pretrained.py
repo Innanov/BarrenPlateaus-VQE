@@ -37,9 +37,9 @@ def pretrained(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     warm-up is on top, not carved out of max_iters). The full stage refines with a
     reduced stepsize, a fifth of the one stage 1 used (the optimizer's default
     unless optimizer_kwargs sets one), because the transfer already lands a
-    near-optimal state that a full-stepsize first step would overshoot and disrupt.
-    This mirrors qubap continuing its decayed optimizer schedule into the full
-    stage rather than restarting at full step size.
+    near-optimal state that a full-stepsize first step would overshoot and
+    disrupt. This mirrors qubap continuing its decayed optimizer schedule into
+    the full stage rather than restarting at full step size.
 
     With QNG the full stage uses the diagonal metric approximation. QNG's
     block-diagonal metric on this MPS ansatz is not positive semi-definite (it has
@@ -90,6 +90,6 @@ def pretrained(system: MolecularSystem, config: MethodConfig) -> MethodResult:
         n_params=full.n_params,
         stage_boundaries=[boundary],
         param_history=phist_full,
-        # Reported convergence is the full (quantum) stage only, from the warm-start.
+        # Reported convergence is the full (quantum) stage only, warm-started.
         energy_history_global=hist_full,
     )

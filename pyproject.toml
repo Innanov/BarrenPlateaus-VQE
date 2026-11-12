@@ -4,7 +4,7 @@ line-length = 82
 target-version = ["py310"]
 
 [tool.isort]
-profile = "black"          # keep isort and black from fighting over import formatting
+profile = "black"  # keep isort and black from fighting over imports
 line_length = 82
 
 [tool.ruff]
@@ -13,6 +13,5 @@ target-version = "py310"
 
 [tool.ruff.lint]
 # E/W: pycodestyle, F: pyflakes, I: isort, B: bugbear, UP: pyupgrade.
+# E501 (line too long) also covers comments and docstrings, which black skips.
 select = ["E", "W", "F", "B", "UP"]
-# E501 (line too long) is handled by black; ignore it in the linter to avoid overlap.
-ignore = ["E501"]

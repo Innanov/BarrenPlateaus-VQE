@@ -27,7 +27,10 @@ class Optimizer:
     """Common optimizer interface."""
 
     def reset(self, params):
-        """Reset internal state and return the initial parameters (autodiff-ready)."""
+        """Reset internal state and return the initial parameters.
+
+        The returned parameters are autodiff-ready.
+        """
         return pnp.array(np.asarray(params, dtype=float), requires_grad=True)
 
     def step(self, cost, params):  # pragma: no cover - interface

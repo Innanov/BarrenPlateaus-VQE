@@ -48,12 +48,12 @@ def test_local_cost_minimized_at_hf_state(two_qubit_system):
 
 
 def test_two_stage_bookkeeping(two_qubit_system):
-    """The stages are recorded consistently, with the main stage at full max_iters.
+    """The stages are recorded consistently, the main stage at full max_iters.
 
     The warm-up runs warm_iters as extra preparation and the main stage runs the
     full max_iters, so the whole record is warm_iters + max_iters long, with the
-    boundary at warm_iters. The global curve re-scores the whole parameter path, so
-    it has the same length as param_history.
+    boundary at warm_iters. The global curve re-scores the whole parameter path,
+    so it has the same length as param_history.
     """
     cfg = MethodConfig(depth=1, max_iters=5, warm_iters=2, seed=0)
     result = local_global(two_qubit_system, cfg)

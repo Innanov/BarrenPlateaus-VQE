@@ -14,15 +14,16 @@ Two kinds of sample (see src/core/analysis/gradient_scaling.py):
 
 Output in results/<molecule>/gradient_scaling/<timestamp>_<label>/, where label
 is <ansatz>_<cost> or warm_start_<method>:
-    scaling_analysis_data.csv     one row per depth (grad var/norm, params, runtime)
+    scaling_analysis_data.csv     one row per depth (grad var/norm, params,
+                                  runtime)
     barren_plateau_summary.json   min variance + variance-by-depth
     run_parameters.json           provenance
 
-Usage:
-    python scripts/compute_gradient_scaling.py --molecules H2 LiH BeH2 --max-layers 50 --samples 100
-    python scripts/compute_gradient_scaling.py -m LiH --ansatz sea --max-layers 20
-    python scripts/compute_gradient_scaling.py -m LiH --cost local_cost --max-layers 20
-    python scripts/compute_gradient_scaling.py -m LiH --warm-start pretrained --depths 4 8 16 --samples 20
+Usage, python scripts/compute_gradient_scaling.py followed by:
+    -m H2 LiH BeH2 --max-layers 50 --samples 100
+    -m LiH --ansatz sea --max-layers 20
+    -m LiH --cost local_cost --max-layers 20
+    -m LiH --warm-start pretrained --depths 4 8 16 --samples 20
 """
 
 from __future__ import annotations
@@ -73,7 +74,10 @@ def parse_args(argv=None):
         "--warm-start",
         default=None,
         choices=list(WARM_START_METHODS),
-        help="Measure at this method's handoff point instead of random parameters.",
+        help=(
+            "Measure at this method's handoff point instead of random "
+            "parameters."
+        ),
     )
     p.add_argument(
         "--max-layers", type=int, default=50, help="Sweep depths 1..max-layers."
@@ -106,7 +110,8 @@ def parse_args(argv=None):
         args.ansatz != "efficient_su2" or args.cost != "energy"
     ):
         p.error(
-            "--warm-start uses the method's own ansatz and the energy, drop --ansatz and --cost"
+            "--warm-start uses the method's own ansatz and the energy, "
+            "drop --ansatz and --cost"
         )
     return args
 
@@ -128,7 +133,8 @@ def main(argv=None) -> int:
         system = load_hamiltonian(mol, args.geometry)
         if not verify_against_fci(system):
             raise RuntimeError(
-                f"{mol} ({args.geometry}) Hamiltonian does not match its FCI energy, refusing to run."
+                f"{mol} ({args.geometry}) Hamiltonian does not match its FCI "
+                "energy, refusing to run."
             )
         out_dir = io.make_output_dir(mol, "gradient_scaling", ts)
         print(

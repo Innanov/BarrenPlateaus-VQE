@@ -6,8 +6,8 @@ Rebuilds the gradient-variance-scaling figure from scaling_analysis_data.csv
 saved by compute_gradient_scaling.py. Re-run any time to restyle.
 
 Usage:
-    python scripts/plot_gradient_scaling.py --dir results/H2/gradient_scaling/<timestamp>
-    python scripts/plot_gradient_scaling.py --molecule H2   # newest H2 gradient run
+    python scripts/plot_gradient_scaling.py --dir results/H2/gradient_scaling/<ts>
+    python scripts/plot_gradient_scaling.py -m H2   # newest H2 gradient run
 """
 
 from __future__ import annotations
@@ -73,7 +73,10 @@ def main(argv=None) -> int:
     with open(csv_path, newline="", encoding="utf-8") as fh:
         first = next(csv.DictReader(fh), None)
     if first and first.get("molecule") and first.get("n_qubits"):
-        title = f"{first['molecule']} ({first['n_qubits']} qubits): gradient-variance scaling"
+        title = (
+            f"{first['molecule']} ({first['n_qubits']} qubits): "
+            "gradient-variance scaling"
+        )
     out = os.path.join(run_dir, "gradient_scaling.pdf")
     plots.plot_gradient_scaling(points, out, title=title)
     print(f"Wrote {out}", flush=True)

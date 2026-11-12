@@ -101,8 +101,9 @@ def test_alt_matches_paper_figure():
 
 
 def test_schmidt_form_without_basis_change():
-    """With U2 and U3 at zero (identity), the output is sum_k lambda_k |k>_A |k>_B,
-    the Schmidt form of the paper's Fig. 2, with lambda_k the amplitudes U1 makes.
+    """With U2 and U3 at zero (identity), the output is
+    sum_k lambda_k |k>_A |k>_B, the Schmidt form of the paper's Fig. 2, with
+    lambda_k the amplitudes U1 makes.
     """
     n, half = 6, 3
     m = SEA(n, d=2)

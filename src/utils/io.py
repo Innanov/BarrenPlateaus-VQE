@@ -230,7 +230,7 @@ def write_convergence_csv(path: str, results_by_opt) -> str:
                 boundaries = set(getattr(r, "stage_boundaries", []) or [])
                 raw = r.energy_history
                 gh = getattr(r, "energy_history_global", None) or raw
-                # Right-align energy_global (see the Columns note in the docstring).
+                # Right-align energy_global (see Columns in the docstring).
                 offset = len(raw) - len(gh)
                 for it, e in enumerate(raw):
                     gi = it - offset

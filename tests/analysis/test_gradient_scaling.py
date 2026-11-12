@@ -31,7 +31,7 @@ def test_energy_cost_is_the_molecular_hamiltonian(system):
 
 
 def test_first_stage_costs_are_minimized_at_hf(system):
-    """local_cost is 0 at the HF state and hf_reference is -n there, its minimum."""
+    """At the HF state local_cost is 0 and hf_reference is -n, its minimum."""
     n = system.n_qubits
     local = cost_observable(system, "local_cost")
     reference = cost_observable(system, "hf_reference")
@@ -65,7 +65,7 @@ def test_default_sweep_matches_explicit_energy_cost(system):
 
 
 def test_local_global_warm_start_is_its_handoff_point(system):
-    """The warm-start energy equals local_global's energy at its stage boundary."""
+    """The warm-start energy is local_global's energy at its stage boundary."""
     warm_iters = 5
     run = local_global(
         system, MethodConfig(depth=1, max_iters=2, warm_iters=warm_iters, seed=3)
@@ -106,7 +106,7 @@ def test_pretrained_warm_start_is_its_transfer_point(system):
 
 
 def test_warm_start_samples_use_consecutive_seeds(system):
-    """Two samples from seed 0 give the same mean as seeds 0 and 1 run one by one."""
+    """Two samples from seed 0 match the mean of seeds 0 and 1 run one by one."""
     both = warm_start_gradient_scaling(
         system, "local_global", [1], n_samples=2, warm_iters=3
     )[0]

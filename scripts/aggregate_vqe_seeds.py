@@ -8,15 +8,17 @@ deviation over seeds (pandas std, ddof=1). Needs at least two seeds, and refuses
 seeds whose settings differ in anything but the seed.
 
 Output in results/<molecule>/vqe_seeds/<run_name>/:
-    performance_table_mean_std.csv   <column>_mean and <column>_std per method+optimizer
-    convergence_mean_std.csv         energy_mean and energy_std per iteration (long format)
+    performance_table_mean_std.csv   <column>_mean and <column>_std per
+                                     method+optimizer
+    convergence_mean_std.csv         energy_mean and energy_std per iteration
+                                     (long format)
     run_parameters.json              the shared settings plus the list of seeds
 
 Plot with plot_vqe_seeds.py.
 
 Usage:
-    python scripts/aggregate_vqe_seeds.py --dir results/LiH/vqe_seeds/adam_depth4_iters1000
-    python scripts/aggregate_vqe_seeds.py --molecule LiH --run-name adam_depth4_iters1000
+    python scripts/aggregate_vqe_seeds.py --dir results/LiH/vqe_seeds/<run_name>
+    python scripts/aggregate_vqe_seeds.py -m LiH --run-name adam_depth4_iters1000
 """
 
 from __future__ import annotations
@@ -55,7 +57,10 @@ def parse_args(argv=None):
     )
     p.add_argument(
         "--run-name",
-        help="Run name under results/<molecule>/vqe_seeds/. Optional when there is only one.",
+        help=(
+            "Run name under results/<molecule>/vqe_seeds/. "
+            "Optional when there is only one."
+        ),
     )
     return p.parse_args(argv)
 
@@ -99,12 +104,14 @@ def main(argv=None) -> int:
     seed_dirs = io.find_seed_dirs(seeds_dir)
     if len(seed_dirs) < 2:
         raise SystemExit(
-            f"need at least 2 seed folders in {seeds_dir}, found {list(seed_dirs)}"
+            f"need at least 2 seed folders in {seeds_dir}, "
+            f"found {list(seed_dirs)}"
         )
     params = shared_parameters(seed_dirs)
     if len(params["devices"]) > 1:
         print(
-            f"note: seeds ran on different devices {params['devices']}, so runtime_s mixes them"
+            f"note: seeds ran on different devices {params['devices']}, "
+            "so runtime_s mixes them"
         )
 
     tables = {

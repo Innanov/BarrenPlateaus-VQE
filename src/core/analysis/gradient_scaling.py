@@ -94,9 +94,10 @@ def cost_observable(
 
     Args:
         system: The molecular system.
-        cost: 'energy' (the molecular Hamiltonian), 'local_cost' (local_global's
-            first-stage cost, local_cost_observable) or 'hf_reference' (adiabatic's
-            first-stage Hamiltonian, hf_reference_hamiltonian).
+        cost: 'energy' (the molecular Hamiltonian), 'local_cost'
+            (local_global's first-stage cost, local_cost_observable) or
+            'hf_reference' (adiabatic's first-stage Hamiltonian,
+            hf_reference_hamiltonian).
 
     Returns:
         The observable.
@@ -118,7 +119,10 @@ def cost_observable(
 
 
 def _grad_fn(ansatz, observable, n_qubits):
-    """Return the gradient function of <ansatz(params)| observable |ansatz(params)>."""
+    """Return the gradient function of the expectation value.
+
+    The expectation value is <ansatz(params)| observable |ansatz(params)>.
+    """
     dev = make_device(n_qubits)
 
     @qml.qnode(dev)

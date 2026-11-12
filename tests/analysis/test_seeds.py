@@ -68,7 +68,7 @@ def test_performance_mean_and_sample_std():
 
 
 def test_performance_refuses_missing_run_and_single_seed():
-    """A method absent from one seed, or a lone seed, raises instead of averaging."""
+    """A method absent from a seed or a lone seed raises instead of averaging."""
     with pytest.raises(ValueError):
         aggregate_performance(
             {

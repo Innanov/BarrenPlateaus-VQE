@@ -98,7 +98,9 @@ def single_qubit_marginals(state, n_qubits):
 
 
 def ising_hamiltonian(n_qubits):
-    """A small transverse-field Ising Hamiltonian for the given qubit count (tests).
+    """A small transverse-field Ising Hamiltonian for the given qubit count.
+
+    Used in tests.
 
     2 qubits is a single Z-Z bond plus transverse fields, and 4 qubits is a Z-Z
     ladder plus transverse fields. Only these two sizes are provided.
@@ -134,10 +136,11 @@ def ising_hamiltonian(n_qubits):
 def ising_system(n_qubits):
     """A small MolecularSystem wrapping ising_hamiltonian(n_qubits), for tests.
 
-    Constructs the MolecularSystem in code (fci fields unused) instead of loading a
-    real molecule from the data/ cache, so tests are self-contained and fast. The
-    exact ground_state and ground_energy are solved on first access. electrons is
-    set to half filling so the HF-reference warm-starts have a valid anchor.
+    Constructs the MolecularSystem in code (fci fields unused) instead of loading
+    a real molecule from the data/ cache, so tests are self-contained and fast.
+    The exact ground_state and ground_energy are solved on first access.
+    electrons is set to half filling so the HF-reference warm-starts have a
+    valid anchor.
     """
     return MolecularSystem(
         molecule="test",

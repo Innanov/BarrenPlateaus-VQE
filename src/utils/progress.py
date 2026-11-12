@@ -1,4 +1,4 @@
-"""Progress and timing helpers: a duration formatter and an elapsed / ETA logger."""
+"""Progress and timing helpers: duration formatter and elapsed / ETA logger."""
 
 import time
 
@@ -31,14 +31,17 @@ class Progress:
         self.done = 0
 
     def _prefix(self) -> str:
-        """Build the [elapsed | ETA rem | done/total] prefix from progress so far."""
+        """Build the [elapsed | ETA rem | done/total] prefix from progress."""
         elapsed = time.monotonic() - self.start
         if self.done <= 0:
             eta = "?"
         else:
             per = elapsed / self.done
             eta = format_duration(per * (self.total - self.done))
-        return f"[{format_duration(elapsed)} elapsed | ETA {eta} | {self.done}/{self.total}]"
+        return (
+            f"[{format_duration(elapsed)} elapsed | ETA {eta} | "
+            f"{self.done}/{self.total}]"
+        )
 
     def step(self, message: str) -> None:
         """Advance one work-unit and print message with the clock prefix."""

@@ -9,9 +9,11 @@ aggregate_vqe_seeds.py and plot with plot_vqe_seeds.py. plot_vqe_analysis.py
 plots a single seed.
 
 Output in results/<molecule>/vqe_seeds/<run_name>/seed_<seed>/:
-    performance_table_all_methods.csv   final energy/error/fidelity per method+optimizer
+    performance_table_all_methods.csv   final energy/error/fidelity per
+                                        method+optimizer
     convergence_history.csv             per-iteration energy (long format)
-    run_parameters.json                 provenance (device, optimizers, seed, run_name)
+    run_parameters.json                 provenance (device, optimizers, seed,
+                                        run_name)
 
 run_name defaults to the settings the seeds must share, for example
 adam_depth4_iters1000, so every seed of one setting lands in the same folder.
@@ -21,9 +23,9 @@ methods and keeps the others (see save_seed), so one method can be rerun after a
 fix without recomputing the rest.
 
 Usage:
-    python scripts/compute_vqe_analysis.py --molecule LiH --optimizers adam --seed 0
-    python scripts/compute_vqe_analysis.py --molecule LiH --optimizers adam --seed 1
-    python scripts/compute_vqe_analysis.py --molecule LiH --optimizers adam --seed 0 --methods sea
+    python scripts/compute_vqe_analysis.py -m LiH -o adam --seed 0
+    python scripts/compute_vqe_analysis.py -m LiH -o adam --seed 1
+    python scripts/compute_vqe_analysis.py -m LiH -o adam --seed 0 --methods sea
 """
 
 from __future__ import annotations
@@ -132,7 +134,8 @@ def main(argv=None) -> int:
     system = load_hamiltonian(args.molecule, args.geometry)
     if not verify_against_fci(system):
         raise RuntimeError(
-            f"{args.molecule} ({args.geometry}) Hamiltonian does not match its FCI energy; refusing to run."
+            f"{args.molecule} ({args.geometry}) Hamiltonian does not match its "
+            "FCI energy, refusing to run."
         )
 
     out_dir = io.seed_run_dir(args.molecule, args.run_name, args.seed)
@@ -140,13 +143,15 @@ def main(argv=None) -> int:
     prog = Progress(total=len(args.optimizers) * len(args.methods) + 2)
     prog.note(
         f"[{args.molecule}] seed={args.seed}  n_qubits={system.n_qubits}  "
-        f"device={active_backend()}  optimizers={args.optimizers}  methods={args.methods}  "
+        f"device={active_backend()}  optimizers={args.optimizers}  "
+        f"methods={args.methods}  "
         f"-> {out_dir}"
     )
     if is_partial_rerun(out_dir, args):
         check_same_settings(out_dir, args)
         prog.note(
-            f"seed_{args.seed} exists in {args.run_name}, replacing only {args.methods}."
+            f"seed_{args.seed} exists in {args.run_name}, "
+            f"replacing only {args.methods}."
         )
     elif os.path.isfile(
         os.path.join(out_dir, "performance_table_all_methods.csv")
@@ -182,7 +187,8 @@ def main(argv=None) -> int:
             )
             prog.step(
                 f"{opt:5s} {name:14s} E={r.final_energy:.6f}  "
-                f"err={rows[-1]['energy_error']:.2e}  fid={rows[-1]['fidelity']:.4f}  "
+                f"err={rows[-1]['energy_error']:.2e}  "
+                f"fid={rows[-1]['fidelity']:.4f}  "
                 f"t={r.runtime_s:.1f}s"
             )
         results_by_opt[opt] = results
@@ -203,7 +209,9 @@ _RERUN_KEYS = {"methods", "device", "_provenance"}
 
 
 def is_partial_rerun(out_dir: str, args) -> bool:
-    """True when the seed already has results and this call runs only some methods."""
+    """True when the seed already has results and this call runs only some
+    methods.
+    """
     done = os.path.isfile(
         os.path.join(out_dir, "performance_table_all_methods.csv")
     )
