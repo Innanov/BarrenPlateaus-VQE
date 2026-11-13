@@ -1,0 +1,30 @@
+{
+  "molecules": [
+    "H4"
+  ],
+  "geometry": "equilibrium",
+  "ansatz": "efficient_su2",
+  "cost": "hf_reference",
+  "warm_start": null,
+  "max_layers": 20,
+  "depths": null,
+  "samples": 100,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "warm_iters": 150,
+  "optimizer": "adam",
+  "device": "lightning.qubit",
+  "_provenance": {
+    "data_dir": "F:\\QML-Barren Plateaus\\code\\BarrenPlateaus-VQE\\data",
+    "git_commit": "1dd1962a38191db3e6774404cab7247a9ffa2882",
+    "git_dirty": true,
+    "pennylane": "0.42.3",
+    "pennylane_lightning": "0.42.0",
+    "numpy": "2.2.6"
+  }
+}
