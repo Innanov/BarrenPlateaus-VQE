@@ -4,10 +4,33 @@ The barren-plateau quantity is the variance of a cost-function partial
 derivative over parameter samples, measured versus circuit depth (the standard
 BP diagnostic from McClean et al.).
 
-For each (ansatz, depth) we draw parameter samples, take the gradient of the cost
-at each, and keep a fixed reference component (component 0). Its variance across
-samples is the reported mean_grad_var. mean_grad_norm reports the typical
-gradient magnitude for context.
+For each (ansatz, depth) we draw parameter samples and take the gradient of the
+cost at each. Every parameter's partial derivative gets its variance across the
+samples. mean_grad_var is the mean of these variances over the parameters,
+std_grad_var their spread over the parameters, and grad_var_param0 the variance
+of the first parameter alone (the single fixed derivative McClean et al. track).
+The mean describes the whole circuit, where parameter 0 alone can be far from
+typical in shallow circuits. mean_grad_norm reports the typical gradient
+magnitude for context.
+
+sem_grad_var is the standard error of mean_grad_var from the finite number of
+samples (sem as in scipy.stats.sem). mean_grad_var equals the sample mean of
+q_s = mean over parameters of (g_sk - gbar_k)**2, one value per sample s, so its
+standard error is std(q_s, ddof=1) / sqrt(n_samples), NaN below 3 samples
+(with 2, both q_s are equal by construction). On H4 this agrees with a
+bootstrap over samples to within a few tenths of a percent, at 1% to 6% of the
+mean. It is the shaded band of the gradient figures. The spread over parameters
+(std_grad_var, grad_var_per_parameter.csv) is a different quantity: how much the
+parameters differ from each other, not how well the mean is measured.
+
+A random sweep can be repeated with several seeds (compute_gradient_scaling.py
+--seeds). Each (seed, depth) pair gets its own generator,
+numpy.random.default_rng([seed, depth]), so no two seeds or depths share random
+numbers. The gradient figures plot the mean over seeds with a band of +- one
+standard deviation over seeds (see io.load_gradient_points).
+
+Runs saved before grad_var_param0 existed hold parameter 0's variance under
+mean_grad_var. io.load_gradient_points recovers the mean for them.
 
 Two kinds of samples are supported, so every method can be measured where it
 actually starts training:
@@ -27,7 +50,7 @@ actually starts training:
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pennylane as qml
@@ -53,9 +76,9 @@ class GradientScalingPoint:
         method: Ansatz name for random samples, method name for warm starts.
         n_layers: Circuit depth.
         n_parameters: Parameter count at this depth.
-        mean_grad_var: Variance of the reference gradient component across
-            samples (the BP metric).
-        std_grad_var: Spread of the per-component variances across components.
+        mean_grad_var: Mean over parameters of each partial derivative's
+            variance across samples (the BP metric).
+        std_grad_var: Std over parameters of those variances.
         mean_grad_norm: Mean gradient L2 norm over the samples.
         std_grad_norm: Std of the gradient L2 norm over the samples.
         n_qubits: Number of qubits.
@@ -68,6 +91,12 @@ class GradientScalingPoint:
             NaN otherwise), to tell a small gradient near the minimum from one on
             a plateau.
         std_energy_error: Std of E - E_FCI at the samples (warm starts only).
+        grad_var_param0: Variance of the first parameter's partial derivative.
+        sem_grad_var: Standard error of mean_grad_var over the samples.
+        seed: Seed of a random sweep (first seed for warm starts).
+        grad_var_per_parameter: Every parameter's variance, in parameter order.
+            compute_gradient_scaling.py saves it to grad_var_per_parameter.csv,
+            not to the per-depth CSV.
     """
 
     molecule: str
@@ -85,6 +114,10 @@ class GradientScalingPoint:
     n_samples: int = 0
     mean_energy_error: float = float("nan")
     std_energy_error: float = float("nan")
+    grad_var_param0: float = float("nan")
+    sem_grad_var: float = float("nan")
+    seed: int = 0
+    grad_var_per_parameter: np.ndarray | None = field(default=None, repr=False)
 
 
 def cost_observable(
@@ -159,6 +192,12 @@ def _point(
 ):
     """Reduce sampled gradients (and energy errors) to a GradientScalingPoint."""
     var_per_component = np.var(grads, axis=0)
+    per_sample = np.mean((grads - grads.mean(axis=0)) ** 2, axis=1)
+    sem = (
+        float(np.std(per_sample, ddof=1) / np.sqrt(len(grads)))
+        if len(grads) > 2
+        else float("nan")
+    )
     norms = np.linalg.norm(grads, axis=1)
     errors = np.asarray(errors if errors is not None else [np.nan], dtype=float)
     return GradientScalingPoint(
@@ -166,7 +205,7 @@ def _point(
         method=method,
         n_layers=depth,
         n_parameters=n_params,
-        mean_grad_var=float(var_per_component[0]),
+        mean_grad_var=float(np.mean(var_per_component)),
         std_grad_var=float(np.std(var_per_component)),
         mean_grad_norm=float(np.mean(norms)),
         std_grad_norm=float(np.std(norms)),
@@ -177,6 +216,9 @@ def _point(
         n_samples=len(grads),
         mean_energy_error=float(np.mean(errors)),
         std_energy_error=float(np.std(errors)),
+        grad_var_param0=float(var_per_component[0]),
+        sem_grad_var=sem,
+        grad_var_per_parameter=var_per_component,
     )
 
 
@@ -213,7 +255,7 @@ def gradient_scaling(
         method: Ansatz name ('efficient_su2', 'mps' or 'sea').
         depths: Iterable of circuit depths to sweep. Defaults to 1..10.
         n_samples: Number of random initializations per depth.
-        seed: Base RNG seed (offset per depth for independent draws).
+        seed: RNG seed. Each depth draws from default_rng([seed, depth]).
         verbose: Print a progress line per depth.
         cost: The differentiated cost, one of COSTS (see cost_observable).
 
@@ -227,7 +269,7 @@ def gradient_scaling(
     for k, depth in enumerate(depths):
         t0 = time.perf_counter()
         ansatz = build_ansatz(method, system.n_qubits, d=depth)
-        rng = np.random.default_rng(seed + depth)
+        rng = np.random.default_rng([seed, depth])
         grads = _energy_grads(ansatz, observable, system.n_qubits, n_samples, rng)
         point = _point(
             system,
@@ -239,6 +281,7 @@ def gradient_scaling(
             cost,
             "random",
         )
+        point.seed = seed
         points.append(point)
         if verbose:
             _progress(point, k, depths, sweep_start)

@@ -14,16 +14,18 @@ Two kinds of sample (see src/core/analysis/gradient_scaling.py):
 
 Output in results/<molecule>/gradient_scaling/<timestamp>_<label>/, where label
 is <ansatz>_<cost> or warm_start_<method>:
-    scaling_analysis_data.csv     one row per depth (grad var/norm, params,
-                                  runtime)
+    scaling_analysis_data.csv     one row per seed and depth (grad var, its
+                                  standard error, norm, params, runtime)
+    grad_var_per_parameter.csv    one row per seed, depth and parameter
     barren_plateau_summary.json   min variance + variance-by-depth
-    run_parameters.json           provenance
+    run_parameters.json           settings, plus code and package versions
 
 Usage, python scripts/compute_gradient_scaling.py followed by:
     -m H2 LiH BeH2 --max-layers 50 --samples 100
     -m LiH --ansatz sea --max-layers 20
     -m LiH --cost local_cost --max-layers 20
     -m LiH --warm-start pretrained --depths 4 8 16 --samples 20
+    -m LiH --max-layers 20 --seeds 0 1 2 3 4
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from dataclasses import asdict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -91,10 +94,14 @@ def parse_args(argv=None):
     )
     p.add_argument("--samples", type=int, default=100, help="Samples per depth.")
     p.add_argument(
-        "--seed",
+        "--seeds",
         type=int,
-        default=0,
-        help="Base RNG seed (first seed for warm starts).",
+        nargs="+",
+        default=[0],
+        help=(
+            "Seeds for random samples, each a full sweep. Warm starts take "
+            "one seed, the first of their consecutive seeds."
+        ),
     )
     p.add_argument(
         "--warm-iters",
@@ -106,6 +113,8 @@ def parse_args(argv=None):
         "--optimizer", default="adam", help="Warm-up optimizer (warm starts)."
     )
     args = p.parse_args(argv)
+    if args.warm_start and len(args.seeds) != 1:
+        p.error("--warm-start takes one seed (its samples use seed + i)")
     if args.warm_start and (
         args.ansatz != "efficient_su2" or args.cost != "energy"
     ):
@@ -121,6 +130,33 @@ def run_label(args) -> str:
     if args.warm_start:
         return f"warm_start_{args.warm_start}"
     return f"{args.ansatz}_{args.cost}"
+
+
+def write_points(out_dir: str, points) -> None:
+    """Save the per-depth table and every parameter's variance.
+
+    scaling_analysis_data.csv holds one row per (seed, depth).
+    grad_var_per_parameter.csv holds one row per (seed, depth, parameter), so
+    any statistic over parameters or seeds can be recomputed from saved data.
+    """
+    per_depth = [
+        {k: v for k, v in asdict(p).items() if k != "grad_var_per_parameter"}
+        for p in points
+    ]
+    io.write_csv(os.path.join(out_dir, "scaling_analysis_data.csv"), per_depth)
+    io.write_csv(
+        os.path.join(out_dir, "grad_var_per_parameter.csv"),
+        [
+            {
+                "seed": p.seed,
+                "n_layers": p.n_layers,
+                "parameter_index": k,
+                "grad_var": float(v),
+            }
+            for p in points
+            for k, v in enumerate(p.grad_var_per_parameter)
+        ],
+    )
 
 
 def main(argv=None) -> int:
@@ -149,23 +185,33 @@ def main(argv=None) -> int:
                 args.warm_start,
                 depths=depths,
                 n_samples=args.samples,
-                seed=args.seed,
+                seed=args.seeds[0],
                 warm_iters=args.warm_iters,
                 optimizer=args.optimizer,
                 verbose=True,
             )
         else:
-            points = gradient_scaling(
-                system,
-                method=args.ansatz,
-                depths=depths,
-                n_samples=args.samples,
-                seed=args.seed,
-                verbose=True,
-                cost=args.cost,
-            )
+            points = []
+            for seed in args.seeds:
+                print(f"[{mol}] seed {seed}", flush=True)
+                points += gradient_scaling(
+                    system,
+                    method=args.ansatz,
+                    depths=depths,
+                    n_samples=args.samples,
+                    seed=seed,
+                    verbose=True,
+                    cost=args.cost,
+                )
 
-        io.write_csv(os.path.join(out_dir, "scaling_analysis_data.csv"), points)
+        write_points(out_dir, points)
+        by_depth = {
+            d: float(
+                sum(p.mean_grad_var for p in points if p.n_layers == d)
+                / sum(1 for p in points if p.n_layers == d)
+            )
+            for d in depths
+        }
         summary = {
             "molecule": mol,
             "geometry": args.geometry,
@@ -175,8 +221,9 @@ def main(argv=None) -> int:
             "warm_start": args.warm_start,
             "n_qubits": system.n_qubits,
             "depths": depths,
-            "grad_var_by_depth": {p.n_layers: p.mean_grad_var for p in points},
-            "min_grad_var": min(p.mean_grad_var for p in points),
+            "seeds": args.seeds,
+            "grad_var_by_depth": by_depth,
+            "min_grad_var": min(by_depth.values()),
         }
         io.write_json(
             os.path.join(out_dir, "barren_plateau_summary.json"), summary

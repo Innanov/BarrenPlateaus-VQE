@@ -15,6 +15,8 @@ import os
 from dataclasses import asdict, is_dataclass
 from types import SimpleNamespace
 
+import numpy as np
+
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.normpath(os.path.join(_THIS_DIR, "..", ".."))
 RESULTS_ROOT = os.path.join(REPO_ROOT, "results")
@@ -112,6 +114,75 @@ def load_convergence(path: str) -> dict:
             )
         results_by_opt[opt] = results
     return results_by_opt
+
+
+def load_gradient_points(path: str, max_depth: int | None = None) -> list:
+    """Load scaling_analysis_data.csv into plot-ready points.
+
+    mean_grad_var is the mean over parameters of each partial derivative's
+    variance (see src/core/analysis/gradient_scaling.py). Files written before the
+    grad_var_param0 column existed hold parameter 0's variance in mean_grad_var
+    instead. For their random-parameter rows the mean is recovered from the saved
+    gradient norms as (mean_grad_norm**2 + std_grad_norm**2) / n_parameters, the
+    mean over parameters of each derivative's second moment. At uniformly random
+    angles every derivative averages to zero, so this estimates the same mean
+    variance. On LiH it agrees with the directly computed mean to within 2%, well
+    inside the sampling error of 100 samples (about 14%). Old warm-start rows keep
+    parameter 0's variance, since their derivatives do not average to zero.
+
+    A run made with several seeds (a seed column) has one row per seed and
+    depth. Each depth is then reduced over seeds: mean_grad_var is the mean of
+    the seeds' values and seed_std_grad_var their standard deviation (ddof=1),
+    the shaded band. With one seed, seed_std_grad_var is NaN (no band).
+    std_grad_var and sem_grad_var are averaged over seeds.
+
+    Args:
+        path: Path to scaling_analysis_data.csv.
+        max_depth: Drop depths above this, if given.
+
+    Returns:
+        A list of SimpleNamespace with n_layers, n_seeds, mean_grad_var,
+        seed_std_grad_var, std_grad_var, sem_grad_var and mean_energy_error,
+        sorted by depth.
+    """
+    rows_by_depth = {}
+    with open(path, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            depth = int(row["n_layers"])
+            if max_depth is not None and depth > max_depth:
+                continue
+            var = float(row["mean_grad_var"])
+            old = "grad_var_param0" not in row
+            if old and row.get("start", "random") == "random":
+                norm, spread = float(row["mean_grad_norm"]), float(
+                    row["std_grad_norm"]
+                )
+                var = (norm**2 + spread**2) / int(row["n_parameters"])
+            rows_by_depth.setdefault(depth, []).append(
+                (
+                    var,
+                    float(row["std_grad_var"]),
+                    float(row.get("sem_grad_var") or "nan"),
+                    float(row.get("mean_energy_error") or "nan"),
+                )
+            )
+    points = []
+    for depth, rows in sorted(rows_by_depth.items()):
+        var, std, sem, err = (np.array(c) for c in zip(*rows, strict=True))
+        points.append(
+            SimpleNamespace(
+                n_layers=depth,
+                n_seeds=len(rows),
+                mean_grad_var=float(var.mean()),
+                seed_std_grad_var=(
+                    float(var.std(ddof=1)) if len(rows) > 1 else float("nan")
+                ),
+                std_grad_var=float(std.mean()),
+                sem_grad_var=float(sem.mean()),
+                mean_energy_error=float(err.mean()),
+            )
+        )
+    return points
 
 
 def system_info(run_dir: str):
@@ -320,6 +391,11 @@ def find_seed_dirs(run_dir: str) -> dict[int, str]:
     return dict(sorted(found.items()))
 
 
+def _band(values: list):
+    """Return values, or None when the table had no band columns."""
+    return None if any(v is None for v in values) else values
+
+
 def load_convergence_mean_std(path: str) -> dict:
     """Load convergence_mean_std.csv into {optimizer: [plot-ready result, ...]}.
 
@@ -329,17 +405,21 @@ def load_convergence_mean_std(path: str) -> dict:
 
     Returns:
         A mapping {optimizer: [SimpleNamespace(method, energy_history,
-        energy_std, stage_boundaries), ...]} where energy_history is the mean
-        over seeds, so the convergence plot functions draw it like a single run
-        and shade mean +- energy_std.
+        energy_lower, energy_upper, stage_boundaries), ...]} where
+        energy_history is the mean over seeds, so the convergence plot functions
+        draw it like a single run, and energy_lower and energy_upper are the 16th
+        and 84th percentiles over seeds, the shaded band. Tables written before
+        the percentile columns existed give no band (both None).
     """
     acc = {}
     with open(path, newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
             d = acc.setdefault(row["optimizer"], {}).setdefault(row["method"], {})
+            band = "energy_p16" in row
             d[int(row["iteration"])] = (
                 float(row["energy_mean"]),
-                float(row["energy_std"]),
+                float(row["energy_p16"]) if band else None,
+                float(row["energy_p84"]) if band else None,
             )
     results_by_opt = {}
     for opt, methods in acc.items():
@@ -347,7 +427,8 @@ def load_convergence_mean_std(path: str) -> dict:
             SimpleNamespace(
                 method=m,
                 energy_history=[d[i][0] for i in sorted(d)],
-                energy_std=[d[i][1] for i in sorted(d)],
+                energy_lower=_band([d[i][1] for i in sorted(d)]),
+                energy_upper=_band([d[i][2] for i in sorted(d)]),
                 stage_boundaries=[],
             )
             for m, d in methods.items()
@@ -373,6 +454,47 @@ def write_json(path: str, obj) -> str:
     return path
 
 
+def code_version() -> dict:
+    """Return the code and package versions a run was made with.
+
+    git_commit is the checked-out commit and git_dirty says whether tracked files
+    had uncommitted changes (untracked files such as new results do not count).
+    Both are None when git is not available. The package versions are those of
+    the installed PennyLane, its lightning simulator and NumPy.
+    """
+    import subprocess
+    from importlib.metadata import PackageNotFoundError, version
+
+    def git(*args):
+        try:
+            out = subprocess.run(
+                ["git", *args],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            return None
+        return out.stdout.strip()
+
+    def package(name):
+        try:
+            return version(name)
+        except PackageNotFoundError:
+            return None
+
+    commit = git("rev-parse", "HEAD")
+    status = git("status", "--porcelain", "--untracked-files=no")
+    return {
+        "git_commit": commit,
+        "git_dirty": None if status is None else bool(status),
+        "pennylane": package("pennylane"),
+        "pennylane_lightning": package("pennylane_lightning"),
+        "numpy": package("numpy"),
+    }
+
+
 def write_run_parameters(
     output_dir: str, params: dict, data_dir: str, provenance: dict | None = None
 ) -> str:
@@ -383,7 +505,8 @@ def write_run_parameters(
         params: Run parameters (config, seeds, method list, ...).
         data_dir: The data-source directory recorded for provenance.
         provenance: Extra entries for the _provenance block, for example the
-            methods rerun in a seed folder.
+            methods rerun in a seed folder. The block always holds the code
+            version as well (code_version).
 
     Returns:
         The written path.
@@ -391,6 +514,7 @@ def write_run_parameters(
     payload = dict(params)
     payload["_provenance"] = {
         "data_dir": os.path.abspath(data_dir),
+        **code_version(),
         **(provenance or {}),
     }
     return write_json(os.path.join(output_dir, "run_parameters.json"), payload)
