@@ -54,7 +54,13 @@ def aggregate_performance(tables: dict[int, pd.DataFrame]) -> pd.DataFrame:
 
 
 def aggregate_convergence(curves: dict[int, dict]) -> pd.DataFrame:
-    """Reduce per-seed convergence curves to mean and std per iteration.
+    """Reduce per-seed convergence curves to statistics per iteration.
+
+    energy_p16 and energy_p84 are the 16th and 84th percentiles over seeds
+    (numpy's linear interpolation), the band the convergence figures shade. They
+    hold the middle 68% of the seeds whatever the shape of the spread, where
+    mean +- std does so only for normally distributed values, and stuck seeds
+    make the spread far from normal.
 
     Args:
         curves: {seed: results_by_opt}, where results_by_opt is what
@@ -63,7 +69,7 @@ def aggregate_convergence(curves: dict[int, dict]) -> pd.DataFrame:
 
     Returns:
         A long table with columns optimizer, method, iteration, energy_mean,
-        energy_std, n_seeds.
+        energy_std, energy_p16, energy_p84, n_seeds.
 
     Raises:
         ValueError: If fewer than two seeds are given, a run is missing from
@@ -95,6 +101,7 @@ def aggregate_convergence(curves: dict[int, dict]) -> pd.DataFrame:
         )  # (n_seeds, n_iters)
         mean = energies.mean(axis=0)
         std = energies.std(axis=0, ddof=1)
+        p16, p84 = np.percentile(energies, [16, 84], axis=0)
         for it in range(energies.shape[1]):
             rows.append(
                 dict(
@@ -103,6 +110,8 @@ def aggregate_convergence(curves: dict[int, dict]) -> pd.DataFrame:
                     iteration=it,
                     energy_mean=mean[it],
                     energy_std=std[it],
+                    energy_p16=p16[it],
+                    energy_p84=p84[it],
                     n_seeds=energies.shape[0],
                 )
             )

@@ -10,8 +10,8 @@ seeds whose settings differ in anything but the seed.
 Output in results/<molecule>/vqe_seeds/<run_name>/:
     performance_table_mean_std.csv   <column>_mean and <column>_std per
                                      method+optimizer
-    convergence_mean_std.csv         energy_mean and energy_std per iteration
-                                     (long format)
+    convergence_mean_std.csv         energy_mean, energy_std, energy_p16 and
+                                     energy_p84 per iteration (long format)
     run_parameters.json              the shared settings plus the list of seeds
 
 Plot with plot_vqe_seeds.py.

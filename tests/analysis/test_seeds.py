@@ -148,3 +148,20 @@ def test_replace_methods_refuses_different_columns():
         replace_methods(
             _table({"sea": -2.0}), _table({"sea": -2.0}).drop(columns="fidelity")
         )
+
+
+def test_convergence_band_is_the_16th_to_84th_percentile():
+    """The shaded band holds the middle 68% of seeds, not mean +- std."""
+    from types import SimpleNamespace
+
+    from src.core.analysis import aggregate_convergence
+
+    finals = [-1.0, -1.0, -1.0, -0.2, -0.2]
+    curves = {
+        seed: {"adam": [SimpleNamespace(method="standard", energy_history=[e])]}
+        for seed, e in enumerate(finals)
+    }
+    out = aggregate_convergence(curves)
+    p16, p84 = np.percentile(finals, [16, 84])
+    assert out["energy_p16"].iloc[0] == pytest.approx(p16)
+    assert out["energy_p84"].iloc[0] == pytest.approx(p84)
