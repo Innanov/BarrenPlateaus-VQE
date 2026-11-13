@@ -16,7 +16,6 @@ import argparse
 import csv
 import os
 import sys
-from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -40,26 +39,6 @@ def parse_args(argv=None):
     return p.parse_args(argv)
 
 
-def _load_points(path):
-    """Load scaling_analysis_data.csv into point objects for plotting.
-
-    Returns:
-        A list of SimpleNamespace with n_layers, mean_grad_var and std_grad_var
-        (what the plot function reads).
-    """
-    points = []
-    with open(path, newline="", encoding="utf-8") as fh:
-        for row in csv.DictReader(fh):
-            points.append(
-                SimpleNamespace(
-                    n_layers=int(row["n_layers"]),
-                    mean_grad_var=float(row["mean_grad_var"]),
-                    std_grad_var=float(row["std_grad_var"]),
-                )
-            )
-    return points
-
-
 def main(argv=None) -> int:
     """Render the gradient-scaling figure from saved data."""
     args = parse_args(argv)
@@ -67,7 +46,7 @@ def main(argv=None) -> int:
     csv_path = os.path.join(run_dir, "scaling_analysis_data.csv")
     if not os.path.isfile(csv_path):
         raise SystemExit(f"No scaling_analysis_data.csv in {run_dir}")
-    points = _load_points(csv_path)
+    points = io.load_gradient_points(csv_path)
     # Title from the CSV's molecule/n_qubits columns (first row).
     title = None
     with open(csv_path, newline="", encoding="utf-8") as fh:

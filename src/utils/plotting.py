@@ -1,9 +1,21 @@
 """Matplotlib figures: convergence and gradient scaling.
 
 Uses the Agg backend (headless) and an IEEE-conference style (serif fonts,
-compact single-column sizing) so figures drop into a two-column paper. A
-convergence curve that carries an energy_std (the mean over seeds) is drawn with
-a shaded band of mean +- std.
+compact single-column sizing) so figures drop into a two-column paper.
+
+The shaded bands answer different questions in the two kinds of figure.
+
+In a gradient-variance figure the line is the mean over parameters of each
+derivative's variance, averaged over the seeds of the run, and the band is +-
+one standard deviation over seeds (seed_std_grad_var, see
+io.load_gradient_points): how much the curve moves when the random samples are
+drawn with another seed.
+
+In a seed-averaged convergence figure the line is the mean over seeds, and the
+band is the 16th to 84th percentile over seeds: the middle 68% of the seeds. The
+spread over seeds is the result there (some seeds get stuck), and with stuck
+seeds it is far from normal, so mean +- std would not hold 68% of them. The band
+need not be centred on the line.
 """
 
 from __future__ import annotations
@@ -40,28 +52,29 @@ IEEE_STYLE = {
 # Single-column IEEE figure width (~3.3 in) and a comfortable height.
 _FIGSIZE = (3.3, 2.6)
 
-# Opacity of the mean +- std band behind a seed-averaged curve.
+# Opacity of the shaded band behind a curve.
 _STD_ALPHA = 0.25
 
 
 def _plot_curve(ax, r, **line_kw):
-    """Draw one convergence curve, with a mean +- std band if r has energy_std.
+    """Draw one convergence curve, with its seed band if r has one.
 
     Args:
         ax: The matplotlib axis.
-        r: Object with energy_history and, for a seed average, energy_std.
+        r: Object with energy_history and, for a seed average, energy_lower and
+            energy_upper (16th and 84th percentile over seeds, or None).
         **line_kw: Passed to ax.plot (colour, line style, label, ...).
     """
     y = np.asarray(r.energy_history, dtype=float)
     x = np.arange(len(y))
     (line,) = ax.plot(x, y, **line_kw)
-    std = getattr(r, "energy_std", None)
-    if std is not None:
-        std = np.asarray(std, dtype=float)
+    lower = getattr(r, "energy_lower", None)
+    upper = getattr(r, "energy_upper", None)
+    if lower is not None and upper is not None:
         ax.fill_between(
             x,
-            y - std,
-            y + std,
+            np.asarray(lower, dtype=float),
+            np.asarray(upper, dtype=float),
             color=line.get_color(),
             alpha=_STD_ALPHA,
             linewidth=0,
@@ -134,8 +147,9 @@ def plot_convergence(
 
     Args:
         results: Iterable of objects with method, energy_history and (optionally)
-            stage_boundaries and energy_std attributes. With energy_std, the
-            curve is a seed mean and gets a shaded mean +- std band.
+            stage_boundaries, energy_lower and energy_upper attributes. With
+            the last two, the curve is a seed mean and gets a shaded band from
+            the 16th to the 84th percentile over seeds.
         path: Destination figure path (.pdf).
         fci_energy: Optional reference energy drawn as a horizontal line.
         title: Optional plot title (e.g. "H2 (4 qubits)"). A default is used when
@@ -373,20 +387,46 @@ def plot_convergence_optimizers(
     return path
 
 
-def plot_gradient_comparison(curves, path: str, title: str | None = None) -> str:
+def _seed_band(ax, depths, var, spread, color) -> None:
+    """Shade mean +- standard deviation over seeds behind a gradient curve.
+
+    Runs made with one seed have no spread (NaN) and are left unshaded.
+    """
+    ax.fill_between(
+        depths,
+        var - spread,
+        var + spread,
+        color=color,
+        alpha=_STD_ALPHA,
+        linewidth=0,
+    )
+
+
+def plot_gradient_comparison(
+    curves,
+    path: str,
+    title: str | None = None,
+    ylabel: str = r"Var[$\partial_\theta C$]",
+    d_sat: int | None = None,
+) -> str:
     """Plot the gradient variance of several methods versus depth on one log axis.
 
     Each curve is coloured by its VQE method, in the same colour order as the
     convergence figures. Random-parameter samples are solid lines, warm-start
-    samples (a method's handoff point) are dashed with markers, since they are
-    measured at a few depths only.
+    samples (a method's handoff point) are dashed, since they are measured at a
+    few depths only. Every measured depth has a marker, and the shaded band is
+    +- one standard deviation over seeds (see the module docstring).
 
     Args:
         curves: Iterable of (label, method, start, points), where method is a
             name in the VQE method order, start is 'random' or 'warm_start', and
-            points have n_layers and mean_grad_var attributes.
+            points have n_layers, mean_grad_var and seed_std_grad_var
+            attributes.
         path: Destination figure path (.pdf).
         title: Optional plot title.
+        ylabel: y-axis label, naming the normalization when there is one.
+        d_sat: Standard's saturation depth, drawn as a dashed vertical line
+            (src/core/analysis/saturation.py), or None for no line.
 
     Returns:
         The written path.
@@ -395,24 +435,38 @@ def plot_gradient_comparison(curves, path: str, title: str | None = None) -> str
     cmap = plt.get_cmap("tab10")
     with plt.rc_context(IEEE_STYLE):
         fig, ax = plt.subplots(figsize=(4.2, 2.8))
+        drawn = []
         for label, method, start, points in curves:
             pts = sorted(points, key=lambda p: p.n_layers)
             color = cmap(order.index(method) % 10) if method in order else "gray"
-            style = (
-                dict(ls="--", marker="o", markersize=3)
-                if start == "warm_start"
-                else {}
+            depths = np.array([p.n_layers for p in pts])
+            var = np.array([p.mean_grad_var for p in pts])
+            spread = np.array([p.seed_std_grad_var for p in pts])
+            drawn.append(
+                (depths, var, spread, color, label, start == "warm_start")
             )
+        for depths, var, spread, color, label, warm in drawn:
             ax.plot(
-                [p.n_layers for p in pts],
-                [p.mean_grad_var for p in pts],
+                depths,
+                var,
                 color=color,
                 label=label,
-                **style,
+                ls="--" if warm else "-",
+                marker="o",
+                markersize=3 if warm else 2,
+            )
+            _seed_band(ax, depths, var, spread, color)
+        if d_sat is not None:
+            ax.axvline(
+                d_sat,
+                color="black",
+                linestyle="--",
+                linewidth=0.8,
+                label=rf"$d_\mathrm{{sat}} = {d_sat}$",
             )
         ax.set_yscale("log")
         ax.set_xlabel("number of layers")
-        ax.set_ylabel(r"Var[$\partial_\theta C$]")
+        ax.set_ylabel(ylabel)
         ax.set_title(title or "Gradient variance by method")
         ax.xaxis.set_major_locator(MultipleLocator(5))
         ax.xaxis.set_minor_locator(MultipleLocator(1))
@@ -432,13 +486,12 @@ def plot_gradient_comparison(curves, path: str, title: str | None = None) -> str
 def plot_gradient_scaling(points, path: str, title: str | None = None) -> str:
     """Plot gradient variance versus depth on a log scale.
 
-    The mean is a line with markers and mean +- std is a shaded band. Where
-    mean - std is not positive, the log axis cannot show the band's lower edge,
-    so the band is left open there.
+    The mean is a line with markers, and the shaded band is +- one standard
+    deviation over seeds (see the module docstring).
 
     Args:
         points: Iterable of gradient-scaling points with n_layers, mean_grad_var
-            and std_grad_var attributes.
+            and seed_std_grad_var attributes.
         path: Destination figure path (.pdf).
 
     Returns:
@@ -446,20 +499,11 @@ def plot_gradient_scaling(points, path: str, title: str | None = None) -> str:
     """
     depths = np.array([p.n_layers for p in points])
     var = np.array([p.mean_grad_var for p in points])
-    err = np.array([p.std_grad_var for p in points])
-    lower = var - err
-    lower = np.where(lower > 0, lower, np.nan)
+    spread = np.array([p.seed_std_grad_var for p in points])
     with plt.rc_context(IEEE_STYLE):
         fig, ax = plt.subplots(figsize=_FIGSIZE)
         (line,) = ax.plot(depths, var, marker="o", markersize=3)
-        ax.fill_between(
-            depths,
-            lower,
-            var + err,
-            color=line.get_color(),
-            alpha=_STD_ALPHA,
-            linewidth=0,
-        )
+        _seed_band(ax, depths, var, spread, line.get_color())
         ax.set_yscale("log")
         ax.set_xlabel("number of layers")
         ax.set_ylabel(r"Var[$\partial_\theta E$]")

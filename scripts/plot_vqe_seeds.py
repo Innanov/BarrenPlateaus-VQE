@@ -3,8 +3,9 @@
 Plot step for seeded VQE runs (no computation).
 
 Draws the same energy-convergence figures as plot_vqe_analysis.py, but each
-method's curve is the mean over seeds with a shaded band of mean +- std. Reads
-convergence_mean_std.csv, written by aggregate_vqe_seeds.py.
+method's curve is the mean over seeds with a shaded band from the 16th to the
+84th percentile over seeds (the middle 68%). Reads convergence_mean_std.csv,
+written by aggregate_vqe_seeds.py.
 
 Output in results/<molecule>/vqe_seeds/<run_name>/:
     energy_convergence_all_methods.pdf

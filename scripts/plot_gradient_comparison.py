@@ -3,15 +3,25 @@
 Plot step: compare the gradient variance of the VQE methods for one molecule.
 
 Reads every run in results/<molecule>/gradient_scaling/, names each by what it
-measured (run_parameters.json), and keeps the newest run of each kind. Each kind
-stands for the point where one VQE method starts training:
+measured (run_parameters.json), and keeps the newest run of each kind. Each
+curve is labelled by its VQE method and shows the cost that method starts
+training on, at random parameters:
 
     efficient_su2, energy        standard
     sea, energy                  sea
     efficient_su2, local_cost    local_global, its first-stage cost
     efficient_su2, hf_reference  adiabatic, its first-stage Hamiltonian
-    warm start local_global      local_global, energy after its warm-up
-    warm start pretrained        pretrained, energy after pre-training
+    mps, energy                  pretrained, its diagonal MPS pre-training stage
+
+Warm starts (--warm-start runs) are left out. local_global's warm-up stalls on
+the local cost's own plateau in deep circuits, and pretrained hands off in a
+different circuit (MPS, many more parameters per layer), so neither handoff point
+compares with the random-parameter curves at the same depth.
+
+Each curve is divided by its cost's Pauli weight (the sum of its squared
+non-identity Pauli coefficients, src/core/analysis/normalization.py), so the
+energy, local_global's local cost and adiabatic's first-stage Hamiltonian share
+one scale. --raw plots the variances in each cost's own units instead.
 
 Output: results/<molecule>/gradient_scaling/gradient_comparison.pdf
 
@@ -31,6 +41,8 @@ from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from src.core.analysis.normalization import cost_pauli_weight  # noqa: E402
+from src.core.analysis.saturation import saturation_depth  # noqa: E402
 from src.utils import io  # noqa: E402
 from src.utils import plotting as plots  # noqa: E402
 
@@ -39,25 +51,12 @@ KINDS = {
     ("efficient_su2", "energy", None): ("standard", "standard", "random"),
     ("sea", "energy", None): ("sea", "sea", "random"),
     ("efficient_su2", "local_cost", None): (
-        "local_global, local cost",
+        "local_global",
         "local_global",
         "random",
     ),
-    ("efficient_su2", "hf_reference", None): (
-        "adiabatic, first stage",
-        "adiabatic",
-        "random",
-    ),
-    ("efficient_su2", "energy", "local_global"): (
-        "local_global, after warm-up",
-        "local_global",
-        "warm_start",
-    ),
-    ("efficient_su2", "energy", "pretrained"): (
-        "pretrained, after pre-training",
-        "pretrained",
-        "warm_start",
-    ),
+    ("efficient_su2", "hf_reference", None): ("adiabatic", "adiabatic", "random"),
+    ("mps", "energy", None): ("pretrained", "pretrained", "random"),
 }
 
 
@@ -69,6 +68,11 @@ def parse_args(argv=None):
     p.add_argument("--molecule", "-m", required=True, help="Molecule name.")
     p.add_argument(
         "--max-depth", type=int, default=None, help="Drop depths above this."
+    )
+    p.add_argument(
+        "--raw",
+        action="store_true",
+        help="Plot raw variances instead of dividing by the Pauli weight.",
     )
     return p.parse_args(argv)
 
@@ -97,27 +101,38 @@ def newest_runs(gs_dir: str) -> dict:
     return found
 
 
-def load_points(run_dir: str, max_depth: int | None):
-    """Load a run's per-depth points (n_layers, mean_grad_var, energy error)."""
-    points = []
-    with open(
-        os.path.join(run_dir, "scaling_analysis_data.csv"),
-        newline="",
-        encoding="utf-8",
-    ) as fh:
-        for row in csv.DictReader(fh):
-            depth = int(row["n_layers"])
-            if max_depth is None or depth <= max_depth:
-                points.append(
-                    SimpleNamespace(
-                        n_layers=depth,
-                        mean_grad_var=float(row["mean_grad_var"]),
-                        mean_energy_error=float(
-                            row.get("mean_energy_error") or "nan"
-                        ),
-                    )
-                )
-    return points
+def standard_d_sat(curves) -> int | None:
+    """Return standard's saturation depth, the dashed line, or None.
+
+    Uses saturation_depth with its defaults, the same rule as
+    find_saturation_depths.py, so the figure and results/d_sat.csv agree. None
+    when there is no standard curve, it stops before the flat window, or the
+    depth is not reached.
+    """
+    for _, method, _, points in curves:
+        if method == "standard":
+            try:
+                return saturation_depth(
+                    [p.n_layers for p in points],
+                    [p.mean_grad_var for p in points],
+                )[1]
+            except ValueError:
+                return None
+    return None
+
+
+def normalized(points, weight: float) -> list:
+    """Return the points with the variance and its seed band divided by weight."""
+    return [
+        SimpleNamespace(
+            **{
+                **vars(p),
+                "mean_grad_var": p.mean_grad_var / weight,
+                "seed_std_grad_var": p.seed_std_grad_var / weight,
+            }
+        )
+        for p in points
+    ]
 
 
 def main(argv=None) -> int:
@@ -131,9 +146,22 @@ def main(argv=None) -> int:
     for kind in KINDS:
         if kind in runs:
             label, method, start = KINDS[kind]
-            points = load_points(runs[kind], args.max_depth)
+            points = io.load_gradient_points(
+                os.path.join(runs[kind], "scaling_analysis_data.csv"),
+                args.max_depth,
+            )
+            with open(
+                os.path.join(runs[kind], "run_parameters.json"), encoding="utf-8"
+            ) as fh:
+                geometry = json.load(fh).get("geometry", "equilibrium")
+            weight = cost_pauli_weight(args.molecule, kind[1], geometry)
+            if not args.raw:
+                points = normalized(points, weight)
             curves.append((label, method, start, points))
-            print(f"{label:32s} {os.path.basename(runs[kind])}")
+            print(
+                f"{label:32s} {os.path.basename(runs[kind])}  "
+                f"Pauli weight {weight:.4g}"
+            )
             if start == "warm_start":
                 for p in points:
                     print(
@@ -150,7 +178,14 @@ def main(argv=None) -> int:
         "gradient variance by method"
     )
     out = os.path.join(gs_dir, "gradient_comparison.pdf")
-    plots.plot_gradient_comparison(curves, out, title=title)
+    ylabel = (
+        r"Var[$\partial_\theta C$]"
+        if args.raw
+        else r"Var[$\partial_\theta C$] / $\sum_P c_P^2$"
+    )
+    plots.plot_gradient_comparison(
+        curves, out, title=title, ylabel=ylabel, d_sat=standard_d_sat(curves)
+    )
     print(f"wrote {out}")
     return 0
 
