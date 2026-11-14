@@ -12,7 +12,9 @@ Both the FCI energy and the ground-state statevector come straight from the
 dataset. The statevector is reconstructed from the cached determinant expansion.
 A sparse Lanczos solve (scipy.sparse.linalg.eigsh, never a dense 2**n x 2**n
 diagonalization) is only a fallback for the rare case where a dataset ships no
-ground-state expansion.
+ground-state expansion, and for tapered Hamiltonians, whose files carry no
+expansion (it belongs to the untapered qubits) but carry their Hartree-Fock state
+as hf_state (see MolecularSystem.hf_occupation).
 """
 
 from __future__ import annotations
@@ -46,6 +48,7 @@ class MolecularSystem:
     electrons: int | None = None
     _ground_state: np.ndarray | None = None
     _ground_energy: float | None = None
+    _hf_occupation: np.ndarray | None = None
 
     @property
     def ground_state(self) -> np.ndarray:
@@ -56,13 +59,19 @@ class MolecularSystem:
 
     @property
     def hf_occupation(self) -> np.ndarray:
-        """Hartree-Fock occupation vector: 1 on the lowest `electrons` qubits.
+        """Hartree-Fock occupation vector, one 0 or 1 per qubit.
 
         Under Jordan-Wigner the HF determinant occupies the lowest-energy
         spin-orbitals, which are qubits 0..electrons-1. This is the
         easy-to-prepare reference state (a single product state) used to anchor
         the adiabatic and local_global warm-starts.
+
+        A tapered Hamiltonian (fetch_hamiltonians.py --tapered) has its HF state
+        stored in the JSON as hf_state, because after tapering it no longer fills
+        the first `electrons` qubits. That stored state is returned when present.
         """
+        if self._hf_occupation is not None:
+            return np.asarray(self._hf_occupation, dtype=int)
         if self.electrons is None:
             raise ValueError(
                 f"No electron count cached for {self.molecule}; re-run "
@@ -177,6 +186,11 @@ def load_hamiltonian(
             int(raw["electrons"]) if raw.get("electrons") is not None else None
         ),
         _ground_state=cached_gs,
+        _hf_occupation=(
+            np.asarray(raw["hf_state"], dtype=int)
+            if raw.get("hf_state") is not None
+            else None
+        ),
     )
 
 
