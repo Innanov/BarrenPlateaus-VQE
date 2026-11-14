@@ -1,7 +1,9 @@
 """Hamiltonian loading from the cached PennyLane JSON datasets.
 
-The JSON cache is produced by scripts/fetch_hamiltonians.py into the gitignored
-data/ directory (run it once before loading). Each file stores a qubit
+The JSON cache is produced by scripts/fetch_hamiltonians.py into data/. The files
+of the molecules in the study are committed (H2, H4, LiH, BeH2, NH3 and the
+tapered H2O and HeH+), and the folder ignores any other molecule fetched, so
+fetch a new one before loading it. Each file stores a qubit
 Hamiltonian as [pauli_string, coefficient] pairs, the exact FCI energy, and the
 FCI ground state as a determinant expansion (from PennyLane's
 initial_state_dets/coeffs). This module rebuilds a pennylane.Hamiltonian and

@@ -31,10 +31,13 @@ py -3.10 -m venv .venv310 && .venv310\Scripts\Activate.ps1   # Windows
 pip install -r requirements.txt
 ```
 
-**Fetch Hamiltonians** (one-time, writes JSON files to `data/`):
+**Hamiltonians**: the JSON files of the studied molecules (H2, H4, LiH, BeH2,
+NH3, and the tapered H2O and HeH+) are committed in `data/`. Other molecules are
+fetched from the PennyLane qchem dataset into `data/`, which ignores them:
 
 ```bash
-python scripts/fetch_hamiltonians.py
+python scripts/fetch_hamiltonians.py -m CH4
+python scripts/fetch_hamiltonians.py -m H2O --tapered
 ```
 
 ### Simulator backend
