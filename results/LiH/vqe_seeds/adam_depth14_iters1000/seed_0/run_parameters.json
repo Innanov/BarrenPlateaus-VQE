@@ -1,0 +1,29 @@
+{
+  "molecule": "LiH",
+  "geometry": "equilibrium",
+  "depth": 14,
+  "optimizers": [
+    "adam"
+  ],
+  "iters": 1000,
+  "warm_iters": 150,
+  "methods": [
+    "standard",
+    "local_global",
+    "adiabatic",
+    "sea",
+    "pretrained"
+  ],
+  "seed": 0,
+  "run_name": "adam_depth14_iters1000",
+  "tag": null,
+  "device": "lightning.qubit",
+  "_provenance": {
+    "data_dir": "F:\\QML-Barren Plateaus\\code\\BarrenPlateaus-VQE\\data",
+    "git_commit": "0bdc2f26be326a63c7139b89c221da7bc7da5660",
+    "git_dirty": false,
+    "pennylane": "0.42.3",
+    "pennylane_lightning": "0.42.0",
+    "numpy": "2.2.6"
+  }
+}
