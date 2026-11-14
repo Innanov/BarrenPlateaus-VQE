@@ -401,7 +401,7 @@ def load_convergence_mean_std(path: str) -> dict:
 
     Args:
         path: Path to convergence_mean_std.csv (written by
-            scripts/aggregate_vqe_seeds.py).
+            scripts/vqe_convergence.py).
 
     Returns:
         A mapping {optimizer: [SimpleNamespace(method, energy_history,

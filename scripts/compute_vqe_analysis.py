@@ -4,9 +4,8 @@ Compute step for the VQE analysis, one seed per call (no plotting).
 
 Runs the five VQE methods under each optimizer from the initial parameters drawn
 with --seed, and saves the data needed to rebuild the figures. Run it once per
-seed with the same other settings, then reduce the seeds with
-aggregate_vqe_seeds.py and plot with plot_vqe_seeds.py. plot_vqe_analysis.py
-plots a single seed.
+seed with the same other settings, then reduce the seeds and plot them with
+vqe_convergence.py, which also plots a single seed (--dir).
 
 Output in results/<molecule>/vqe_seeds/<run_name>/seed_<seed>/:
     performance_table_all_methods.csv   final energy/error/fidelity per
@@ -199,7 +198,7 @@ def main(argv=None) -> int:
 
     prog.note(
         f"[{args.molecule}] seed {args.seed} done. Plot this seed with: "
-        f'python scripts/plot_vqe_analysis.py --dir "{out_dir}"'
+        f'python scripts/vqe_convergence.py --dir "{out_dir}"'
     )
     return 0
 
@@ -252,7 +251,7 @@ def save_seed(out_dir: str, args, rows, results_by_opt) -> None:
     the existing tables and keeps the other methods. Its run_parameters.json then
     lists every method the folder holds, in the usual order, and its _provenance
     adds the rerun methods to rerun_methods, so the history stays visible without
-    changing the settings that aggregate_vqe_seeds.py compares across seeds.
+    changing the settings that vqe_convergence.py compares across seeds.
     Otherwise the tables are written from scratch.
     """
     perf_path = os.path.join(out_dir, "performance_table_all_methods.csv")

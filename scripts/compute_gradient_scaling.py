@@ -3,8 +3,8 @@
 Compute step for gradient-variance scaling (no plotting).
 
 Sweeps circuit depth and measures the barren-plateau gradient variance. Saves
-data only. Render one run with plot_gradient_scaling.py, or compare the methods
-of one molecule with plot_gradient_comparison.py.
+data only. Draw one run with gradient_variance.py --dir, or compare the methods
+of one molecule with gradient_variance.py --molecules.
 
 Two kinds of sample (see src/core/analysis/gradient_scaling.py):
     random parameters      --ansatz and --cost pick the circuit and the cost
@@ -233,7 +233,7 @@ def main(argv=None) -> int:
         )
         print(
             f"[{mol}] compute done. Render with: "
-            f'python scripts/plot_gradient_scaling.py --dir "{out_dir}"',
+            f'python scripts/gradient_variance.py --dir "{out_dir}"',
             flush=True,
         )
 

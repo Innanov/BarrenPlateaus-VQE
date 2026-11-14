@@ -65,22 +65,27 @@ on where it starts. Three steps turn the seeds into tables and figures:
 python scripts/compute_vqe_analysis.py --molecule LiH --optimizers adam --seed 0
 python scripts/compute_vqe_analysis.py --molecule LiH --optimizers adam --seed 1
 
-# 2. AGGREGATE: mean and sample std over the seeds (at least two), written as
-#    performance_table_mean_std.csv and convergence_mean_std.csv.
-python scripts/aggregate_vqe_seeds.py --molecule LiH --run-name adam_depth4_iters1000
-
-# 3. PLOT: convergence of the seed mean with a shaded mean +- std band.
-python scripts/plot_vqe_seeds.py --molecule LiH --run-name adam_depth4_iters1000
+# 2. AGGREGATE AND PLOT: mean and sample std over the seeds (at least two),
+#    written as performance_table_mean_std.csv and convergence_mean_std.csv,
+#    then the convergence figure (seed mean, 16th to 84th percentile band,
+#    zoomed inset).
+python scripts/vqe_convergence.py --molecule LiH --run-name adam_depth4_iters1000
 
 # Convergence of a single seed (or of a run made before seeding):
-python scripts/plot_vqe_analysis.py --dir results/LiH/vqe_seeds/adam_depth4_iters1000/seed_0
+python scripts/vqe_convergence.py --dir results/LiH/vqe_seeds/adam_depth4_iters1000/seed_0
+
+# One molecule at d_sat and 2 x d_sat side by side (d_sat from results/d_sat.csv):
+python scripts/vqe_convergence.py --molecule LiH --d-sat
 
 # COMPUTE: gradient-variance scaling vs depth (the barren-plateau metric).
 # Optimizer-independent, samples gradients at random inits, no optimization.
 python scripts/compute_gradient_scaling.py --molecules H2 LiH BeH2 --max-layers 50 --samples 100
 
-# PLOT: gradient variance vs depth, mean with a shaded mean +- std band.
-python scripts/plot_gradient_scaling.py --molecule H2     # newest H2 gradient run
+# ANALYSE: the gradient variance of every method of a molecule, one sweep folder
+# on its own, or the saturation depths of all molecules (results/d_sat.csv).
+python scripts/gradient_variance.py --molecules H2 LiH
+python scripts/gradient_variance.py --dir results/H2/gradient_scaling/<ts>
+python scripts/gradient_variance.py --d-sat
 ```
 
 Seeded VQE runs are written to `results/<molecule>/vqe_seeds/<run_name>/seed_<seed>/`,

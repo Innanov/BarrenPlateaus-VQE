@@ -16,6 +16,25 @@ band is the 16th to 84th percentile over seeds: the middle 68% of the seeds. The
 spread over seeds is the result there (some seeds get stuck), and with stuck
 seeds it is far from normal, so mean +- std would not hold 68% of them. The band
 need not be centred on the line.
+
+A convergence figure with one optimizer has a zoomed inset (draw_inset) unless
+inset=False. It shows iterations 20% to 80% of the budget (200 to 800 for 1000,
+window), from just below FCI to the largest median energy above FCI over that
+window (inset_height). Methods stuck in the plateau, with a median more than
+stuck (0.1 Ha) above FCI, are left out of that maximum, or at deep circuits they
+stretch the range to several Ha and the inset zooms on nothing. They leave the
+top of the inset instead, and if every method is stuck all are used.
+
+The inset sits on the right of the axes, as high as it fits without touching a
+curve or seed band (_inset_bounds): the top right for most runs, lower and if
+needed smaller below methods stuck high in the plateau. A box marks the zoomed
+region, and two lines join the box's top corners to the inset's bottom corners.
+They are drawn by hand, since indicate_inset_zoom joins matching corners, and
+with the inset above the box one of those lines would cross the inset.
+
+plot_convergence_panels puts several runs side by side (for example one
+molecule at d_sat and 2 x d_sat) on a shared energy axis, with one inset range
+for all panels so the insets compare directly.
 """
 
 from __future__ import annotations
@@ -28,7 +47,12 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
-from matplotlib.ticker import MultipleLocator  # noqa: E402
+from matplotlib.patches import ConnectionPatch  # noqa: E402
+from matplotlib.ticker import (  # noqa: E402
+    FormatStrFormatter,
+    MaxNLocator,
+    MultipleLocator,
+)
 
 # IEEE-conference style, applied per-figure via plt.rc_context (never global).
 IEEE_STYLE = {
@@ -54,6 +78,19 @@ _FIGSIZE = (3.3, 2.6)
 
 # Opacity of the shaded band behind a curve.
 _STD_ALPHA = 0.25
+
+# Inset iterations as fractions of the iteration budget.
+INSET_WINDOW = (0.2, 0.8)
+# Median energy above FCI (Ha) over which a method is left out of the inset range.
+INSET_STUCK = 0.1
+# Inset left edge and width in axes fractions.
+_INSET_LEFT, _INSET_WIDTH = 0.44, 0.53
+# Inset heights to try, tallest first.
+_INSET_HEIGHTS = (0.45, 0.4, 0.35, 0.3)
+# Lowest and highest axes fractions the inset may span.
+_INSET_FLOOR, _INSET_CEILING = 0.15, 0.95
+# Clear space around the inset (left, below, above) for its tick labels.
+_INSET_MARGIN = (0.1, 0.08, 0.03)
 
 
 def _plot_curve(ax, r, **line_kw):
@@ -81,18 +118,144 @@ def _plot_curve(ax, r, **line_kw):
         )
 
 
+def window_medians(results, fci: float, start: int, stop: int) -> list[float]:
+    """Return each method's median energy above FCI over iterations start:stop."""
+    return [
+        float(
+            np.median(np.asarray(r.energy_history, dtype=float)[start:stop]) - fci
+        )
+        for r in results
+    ]
+
+
+def inset_height(medians: list[float], stuck: float = INSET_STUCK) -> float:
+    """Return the inset's energy range above FCI from the window medians.
+
+    The largest median at or below stuck, or the largest of all when every
+    method is stuck. Floored at 1e-6 Ha, so an inset whose curves all sit on
+    FCI still has a readable range.
+    """
+    kept = [m for m in medians if m <= stuck] or medians
+    return max(max(kept), 1e-6)
+
+
+def _iterations_covered(ax, results, bounds) -> int:
+    """Count the iterations at which a curve or its band overlaps bounds.
+
+    bounds is [x, y, width, height] in axes fractions, as for inset_axes. At
+    each iteration a method spans the energies from its band's lower edge to
+    its upper edge (and its mean), so a band counts even where its edges pass
+    above and below bounds. Uses the current axis limits, so call it once
+    every panel's curves are drawn.
+    """
+    (x0, x1), (y0, y1) = ax.get_xlim(), ax.get_ylim()
+    left, bottom, width, height = bounds
+    count = 0
+    for r in results:
+        curves = [r.energy_history] + [
+            v
+            for v in (
+                getattr(r, "energy_lower", None),
+                getattr(r, "energy_upper", None),
+            )
+            if v is not None
+        ]
+        y = (np.asarray(curves, dtype=float) - y0) / (y1 - y0)
+        x = (np.arange(y.shape[1]) - x0) / (x1 - x0)
+        overlap = (y.max(axis=0) >= bottom) & (y.min(axis=0) <= bottom + height)
+        overlap &= (x >= left) & (x <= left + width)
+        count += int(overlap.sum())
+    return count
+
+
+def _inset_bounds(ax, results) -> list[float]:
+    """Return where the inset goes, as [x, y, width, height] in axes fractions.
+
+    Tries each of _INSET_HEIGHTS, tallest first, and slides it down from the top
+    of the axes in steps of 0.01. The first place where the inset and its tick
+    label margin (_INSET_MARGIN) overlap no curve or band wins. If no place is
+    free, the one overlapping the fewest iterations wins.
+    """
+    pad_left, pad_below, pad_above = _INSET_MARGIN
+    candidates = []
+    for height in _INSET_HEIGHTS:
+        top = _INSET_CEILING
+        while top - height >= _INSET_FLOOR - 1e-9:
+            bounds = [_INSET_LEFT, top - height, _INSET_WIDTH, height]
+            padded = [
+                _INSET_LEFT - pad_left,
+                top - height - pad_below,
+                _INSET_WIDTH + pad_left,
+                height + pad_below + pad_above,
+            ]
+            covered = _iterations_covered(ax, results, padded)
+            if covered == 0:
+                return bounds
+            candidates.append((covered, bounds))
+            top -= 0.01
+    return min(candidates, key=lambda c: c[0])[1]
+
+
+def draw_inset(ax, results, fci, window, height) -> None:
+    """Draw the zoomed inset, its box and connectors into ax.
+
+    Args:
+        ax: Axes with the curves already drawn and their limits set.
+        results: The curves (as for plot_convergence).
+        fci: FCI energy, the bottom of the inset range.
+        window: (start, stop) iterations the inset shows.
+        height: Energy range above FCI (inset_height).
+    """
+    inset = ax.inset_axes(_inset_bounds(ax, results))
+    for r in results:
+        _plot_curve(inset, r)
+    inset.axhline(fci, color="black", linestyle="--")
+    inset.set_xlim(*window)
+    inset.set_ylim(fci - 0.075 * height, fci + height)
+    decimals = max(2, int(np.ceil(-np.log10(height / 2))) + 1)
+    inset.yaxis.set_major_locator(MaxNLocator(6, min_n_ticks=4))
+    inset.yaxis.set_major_formatter(FormatStrFormatter(f"%.{decimals}f"))
+    inset.tick_params(labelsize=5)
+    y0, y1 = inset.get_ylim()
+    ax.indicate_inset(
+        [window[0], y0, window[1] - window[0], y1 - y0],
+        edgecolor="0.4",
+        linewidth=0.5,
+    )
+    for corner in (0, 1):
+        ax.add_artist(
+            ConnectionPatch(
+                xyA=(corner, 0),
+                coordsA=inset.transAxes,
+                xyB=(window[corner], y1),
+                coordsB=ax.transData,
+                color="0.4",
+                linewidth=0.5,
+            )
+        )
+
+
+def _window(n_iters: int, window: tuple[float, float]) -> tuple[int, int]:
+    """Return the inset iterations for a budget of n_iters."""
+    return int(window[0] * n_iters), int(window[1] * n_iters)
+
+
 def write_convergence_figures(
     results_by_opt,
     out_dir: str,
     fci_energy: float | None = None,
     label: str | None = None,
     max_iters: int | None = None,
+    inset: bool = True,
+    window: tuple[float, float] = INSET_WINDOW,
+    stuck: float = INSET_STUCK,
 ) -> list[str]:
     """Write the energy-convergence figures of one run (or one seed average).
 
-    One optimizer gives energy_convergence_all_methods.pdf as a single axes.
-    Several optimizers give a panel per optimizer in that file, plus
-    energy_convergence_overlay.pdf with all of them on one axes.
+    One optimizer gives energy_convergence_all_methods.pdf as a single axes,
+    with the zoomed inset unless inset is False. Several optimizers give a panel
+    per optimizer in that file, plus energy_convergence_overlay.pdf with all of
+    them on one axes, both without an inset.
 
     Args:
         results_by_opt: {optimizer: [result, ...]} as returned by
@@ -101,6 +264,10 @@ def write_convergence_figures(
         fci_energy: Optional FCI energy drawn as a reference line.
         label: Optional system label for the title, e.g. "LiH (12 qubits)".
         max_iters: Optional x-axis cap (the main-stage iteration budget).
+        inset: Draw the zoomed inset (one optimizer only).
+        window: Inset iterations as fractions of the budget.
+        stuck: Median above FCI (Ha) over which a method is left out of the
+            inset range.
 
     Returns:
         The written paths.
@@ -114,6 +281,9 @@ def write_convergence_figures(
             fci_energy=fci_energy,
             title=label,
             max_iters=max_iters,
+            inset=inset,
+            window=window,
+            stuck=stuck,
         )
         return [conv_path]
     opt_list = " vs ".join(o.upper() for o in results_by_opt)
@@ -142,6 +312,9 @@ def plot_convergence(
     fci_energy: float | None = None,
     title: str | None = None,
     max_iters: int | None = None,
+    inset: bool = True,
+    window: tuple[float, float] = INSET_WINDOW,
+    stuck: float = INSET_STUCK,
 ) -> str:
     """Plot energy-convergence curves for several methods.
 
@@ -154,21 +327,33 @@ def plot_convergence(
         fci_energy: Optional reference energy drawn as a horizontal line.
         title: Optional plot title (e.g. "H2 (4 qubits)"). A default is used when
             None.
+        max_iters: Optional x-axis cap (the main-stage iteration budget).
+        inset: Draw the zoomed inset (needs fci_energy).
+        window: Inset iterations as fractions of the budget.
+        stuck: Median above FCI (Ha) over which a method is left out of the
+            inset range.
 
     Returns:
         The written path.
     """
+    results = list(results)
+    n_iters = max_iters or max(len(r.energy_history) for r in results)
     with plt.rc_context(IEEE_STYLE):
         fig, ax = plt.subplots(figsize=_FIGSIZE)
         for r in results:
             _plot_curve(ax, r, label=r.method)
         if fci_energy is not None:
             ax.axhline(fci_energy, color="black", linestyle="--", label="FCI")
-        if max_iters is not None:
-            ax.set_xlim(0, max_iters)
+        ax.set_xlim(0, n_iters)
         ax.set_xlabel("iteration")
         ax.set_ylabel("energy (Ha)")
         ax.set_title(title or "VQE convergence")
+        if inset and fci_energy is not None:
+            span = _window(n_iters, window)
+            height = inset_height(
+                window_medians(results, fci_energy, *span), stuck
+            )
+            draw_inset(ax, results, fci_energy, span, height)
         # Legend below the axes (under the x-label), clear of the title on top.
         ax.legend(
             loc="upper center",
@@ -177,6 +362,75 @@ def plot_convergence(
             frameon=False,
             borderaxespad=0.0,
         )
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+    return path
+
+
+def plot_convergence_panels(
+    panels,
+    path: str,
+    title: str | None = None,
+    inset: bool = True,
+    window: tuple[float, float] = INSET_WINDOW,
+    stuck: float = INSET_STUCK,
+) -> str:
+    """Plot several runs side by side on a shared energy axis.
+
+    Every panel's inset uses one energy range (inset_height over all panels), so
+    the insets compare directly (see the module docstring).
+
+    Args:
+        panels: Iterable of (panel title, results, fci_energy, n_iters).
+        path: Destination figure path (.pdf).
+        title: Optional figure title, e.g. "LiH (12 qubits)".
+        inset: Draw the zoomed insets.
+        window: Inset iterations as fractions of each panel's budget.
+        stuck: Median above FCI (Ha) over which a method is left out of the
+            inset range.
+
+    Returns:
+        The written path.
+    """
+    panels = [(name, list(res), fci, n) for name, res, fci, n in panels]
+    spans = [_window(n, window) for _, _, _, n in panels]
+    medians = [
+        m
+        for (_, res, fci, _), span in zip(panels, spans, strict=True)
+        for m in window_medians(res, fci, *span)
+    ]
+    height = inset_height(medians, stuck)
+    with plt.rc_context(IEEE_STYLE):
+        fig, axes = plt.subplots(
+            1, len(panels), figsize=(3.4 * len(panels), 2.8), sharey=True
+        )
+        axes = np.atleast_1d(axes)
+        for ax, (name, res, fci, n) in zip(axes, panels, strict=True):
+            for r in res:
+                _plot_curve(ax, r, label=r.method)
+            ax.axhline(fci, color="black", linestyle="--", label="FCI")
+            ax.set_xlim(0, n)
+            ax.set_xlabel("iteration")
+            ax.set_ylabel("energy (Ha)")
+            ax.tick_params(labelleft=True)
+            ax.set_title(name)
+        if inset:
+            for ax, (_, res, fci, _), span in zip(
+                axes, panels, spans, strict=True
+            ):
+                draw_inset(ax, res, fci, span, height)
+        if title:
+            fig.suptitle(title, fontsize=9)
+        handles, labels = axes[0].get_legend_handles_labels()
+        fig.legend(
+            handles,
+            labels,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0.0),
+            ncol=len(labels),
+            frameon=False,
+        )
+        fig.tight_layout()
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
     return path
