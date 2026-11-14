@@ -54,6 +54,8 @@ from matplotlib.ticker import (  # noqa: E402
     MultipleLocator,
 )
 
+from src.core.analysis.saturation import TOLERANCE  # noqa: E402
+
 # IEEE-conference style, applied per-figure via plt.rc_context (never global).
 IEEE_STYLE = {
     "font.family": "serif",
@@ -662,6 +664,8 @@ def plot_gradient_comparison(
     title: str | None = None,
     ylabel: str = r"Var[$\partial_\theta C$]",
     d_sat: int | None = None,
+    flat_level: float | None = None,
+    tolerance: float = TOLERANCE,
 ) -> str:
     """Plot the gradient variance of several methods versus depth on one log axis.
 
@@ -681,6 +685,13 @@ def plot_gradient_comparison(
         ylabel: y-axis label, naming the normalization when there is one.
         d_sat: Standard's saturation depth, drawn as a dashed vertical line
             (src/core/analysis/saturation.py), or None for no line.
+        flat_level: Standard's flat level, or None to leave it out.
+        tolerance: Relative half-width of the band around the flat level.
+
+    The flat level is drawn as a dotted line inside a gray band of +- tolerance.
+    d_sat is the first depth from which the standard curve stays inside that
+    band, so the band shows why d_sat sits where it does, also when a curve
+    dips and rises again without leaving the band.
 
     Returns:
         The written path.
@@ -710,6 +721,16 @@ def plot_gradient_comparison(
                 markersize=3 if warm else 2,
             )
             _seed_band(ax, depths, var, spread, color)
+        if flat_level is not None:
+            ax.axhspan(
+                flat_level * (1 - tolerance),
+                flat_level * (1 + tolerance),
+                color="gray",
+                alpha=0.15,
+                linewidth=0,
+                label=rf"standard flat level $\pm${tolerance:.0%}",
+            )
+            ax.axhline(flat_level, color="gray", linestyle=":", linewidth=0.8)
         if d_sat is not None:
             ax.axvline(
                 d_sat,

@@ -243,13 +243,13 @@ def standard_d_sat(molecule: str) -> int:
     path = os.path.join(io.RESULTS_ROOT, "d_sat.csv")
     with open(path, encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
-            if row["molecule"] == molecule and row["method"] == "standard":
+            if row["molecule"] == molecule:
                 if not row["d_sat"]:
                     raise SystemExit(
                         f"{molecule}: standard has no d_sat in {path}"
                     )
                 return int(float(row["d_sat"]))
-    raise SystemExit(f"{molecule}: no standard row in {path}")
+    raise SystemExit(f"{molecule}: no row in {path}")
 
 
 def d_sat_figure(args) -> None:

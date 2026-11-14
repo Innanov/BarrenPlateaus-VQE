@@ -11,11 +11,18 @@ DEPTHS = list(range(1, 21))
 
 
 def test_decay_then_flat():
-    """A decay onto a flat level saturates where it stays within 20% of it."""
-    values = [1.0 + 100 * 0.5**d for d in DEPTHS]  # within 20% from d = 9
+    """A decay onto a flat level saturates where it stays within 15% of it."""
+    values = [1.0 + 100 * 0.5**d for d in DEPTHS]  # within 15% from d = 10
     flat, d_sat = saturation_depth(DEPTHS, values)
     assert flat == pytest.approx(1.0, rel=1e-2)
-    assert d_sat == 9
+    assert d_sat == 10
+
+
+def test_dip_below_the_tolerance_is_not_flat():
+    """A dip of 18% that climbs back (HeH+ tapered) saturates after the dip."""
+    values = [1.0, 0.89, 0.82, 0.84, 0.87, 0.9] + [1.0] * 14
+    assert saturation_depth(DEPTHS, values)[1] == 5
+    assert saturation_depth(DEPTHS, values, tolerance=0.2)[1] == 1
 
 
 def test_small_drift_does_not_delay_saturation():

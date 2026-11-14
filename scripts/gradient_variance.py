@@ -29,16 +29,19 @@ Each curve is divided by its cost's Pauli weight (the sum of its squared
 non-identity Pauli coefficients, src/core/analysis/normalization.py), so the
 energy, local_global's local cost and adiabatic's first-stage Hamiltonian share
 one scale. --raw plots the variances in each cost's own units instead. The
-dashed line is standard's d_sat.
+dotted line is standard's flat level (its mean over depths 15 to 20), the gray
+band is that level +- the tolerance (15%), and the dashed line is standard's
+d_sat, the first depth from which the standard curve stays inside the band.
 
---d-sat applies the rule in src/core/analysis/saturation.py to the same curves.
-Standard's d_sat is the molecule's reference, which sets the VQE depths (d_sat
-and 2 * d_sat). Every method is also reported relative to it, delta_d = d_sat
-(method) - d_sat(standard). Only runs saved with grad_var_per_parameter.csv (the
-seeded runs) count. Without -m, every molecule under results/ with such runs is
+--d-sat applies the rule in src/core/analysis/saturation.py to the standard
+curve of each molecule, one row per molecule. Standard is the base level: its
+d_sat sets the VQE depths of every method (d_sat and 2 * d_sat), so the other
+methods get no d_sat of their own. Their curves are compared with standard's in
+the figure instead. Only runs saved with grad_var_per_parameter.csv (the seeded
+runs) count. Without -m, every molecule under results/ with such runs is
 included, so rerunning never drops a molecule from the table. The flat level is
 saved both raw and divided by the Pauli weight (normalized_flat_level), which
-compares across methods and molecules.
+compares across molecules.
 
 Output:
     results/<molecule>/gradient_scaling/gradient_comparison.pdf   (-m)
@@ -66,7 +69,7 @@ from types import SimpleNamespace
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.core.analysis.normalization import cost_pauli_weight  # noqa: E402
-from src.core.analysis.saturation import saturation_depth  # noqa: E402
+from src.core.analysis.saturation import TOLERANCE, saturation_depth  # noqa: E402
 from src.core.backend.hamiltonians import json_path  # noqa: E402
 from src.utils import io  # noqa: E402
 from src.utils import plotting as plots  # noqa: E402
@@ -108,7 +111,7 @@ def parse_args(argv=None):
     p.add_argument(
         "--tolerance",
         type=float,
-        default=0.2,
+        default=TOLERANCE,
         help="Relative distance from the flat level that counts as flat.",
     )
     p.add_argument(
@@ -155,12 +158,15 @@ def run_geometry(run_dir: str) -> str:
         return json.load(fh).get("geometry", "equilibrium")
 
 
-def standard_d_sat(curves) -> int | None:
-    """Return standard's saturation depth, the dashed line, or None.
+def standard_saturation(curves) -> tuple[float | None, int | None]:
+    """Return standard's flat level and saturation depth, for the figure.
 
     Uses saturation_depth with its defaults, the same rule as --d-sat, so the
-    figure and results/d_sat.csv agree. None when there is no standard curve, it
-    stops before the flat window, or the depth is not reached.
+    figure and results/d_sat.csv agree. The flat level is drawn with its
+    tolerance band and d_sat as a dashed line, which shows why d_sat is where it
+    is: the first depth from which the curve stays inside the band. Both are None
+    when there is no standard curve or it stops before the flat window, and d_sat
+    alone is None when it is not reached.
     """
     for _, method, _, points in curves:
         if method == "standard":
@@ -168,10 +174,10 @@ def standard_d_sat(curves) -> int | None:
                 return saturation_depth(
                     [p.n_layers for p in points],
                     [p.mean_grad_var for p in points],
-                )[1]
+                )
             except ValueError:
-                return None
-    return None
+                return None, None
+    return None, None
 
 
 def normalized(points, weight: float) -> list:
@@ -224,8 +230,14 @@ def comparison_figure(molecule: str, max_depth: int | None, raw: bool) -> str:
         if raw
         else r"Var[$\partial_\theta C$] / $\sum_P c_P^2$"
     )
+    flat_level, d_sat = standard_saturation(curves)
     plots.plot_gradient_comparison(
-        curves, out, title=title, ylabel=ylabel, d_sat=standard_d_sat(curves)
+        curves,
+        out,
+        title=title,
+        ylabel=ylabel,
+        d_sat=d_sat,
+        flat_level=flat_level,
     )
     return out
 
@@ -264,73 +276,65 @@ def molecules_with_sweeps() -> list[str]:
     return sorted(names, key=lambda name: (qubits(name), name))
 
 
-def d_sat_rows(molecule: str, tolerance: float, flat_from: int) -> list[dict]:
-    """Return the d_sat rows, one per method with a seeded run, standard first."""
+STANDARD = ("efficient_su2", "energy", None)
+"""The KINDS key of standard's sweep, the base level that sets d_sat."""
+
+
+def d_sat_row(molecule: str, tolerance: float, flat_from: int) -> dict | None:
+    """Return standard's d_sat row of a molecule, or None without a seeded run."""
     gs_dir = os.path.join(io.RESULTS_ROOT, molecule, "gradient_scaling")
-    if not os.path.isdir(gs_dir):
-        return []
-    rows = []
-    for kind, run_dir in newest_runs(gs_dir).items():
-        if not os.path.isfile(
-            os.path.join(run_dir, "grad_var_per_parameter.csv")
-        ):
-            continue
-        points = io.load_gradient_points(
-            os.path.join(run_dir, "scaling_analysis_data.csv")
-        )
-        flat, d_sat = saturation_depth(
-            [p.n_layers for p in points],
-            [p.mean_grad_var for p in points],
-            tolerance=tolerance,
-            flat_from=flat_from,
-        )
-        weight = cost_pauli_weight(molecule, kind[1], run_geometry(run_dir))
-        rows.append(
-            dict(
-                molecule=molecule,
-                method=KINDS[kind][1],
-                n_seeds=points[0].n_seeds,
-                max_depth=points[-1].n_layers,
-                flat_level=flat,
-                pauli_weight=weight,
-                normalized_flat_level=flat / weight,
-                d_sat=d_sat,
-                run=os.path.basename(run_dir),
-            )
-        )
-    standard = next((r["d_sat"] for r in rows if r["method"] == "standard"), None)
-    for r in rows:
-        both = r["d_sat"] is not None and standard is not None
-        r["delta_d"] = r["d_sat"] - standard if both else None
-        r["tolerance"] = tolerance
-        r["flat_from"] = flat_from
-    return sorted(rows, key=lambda r: r["method"] != "standard")
+    run_dir = newest_runs(gs_dir).get(STANDARD) if os.path.isdir(gs_dir) else None
+    if run_dir is None or not os.path.isfile(
+        os.path.join(run_dir, "grad_var_per_parameter.csv")
+    ):
+        return None
+    points = io.load_gradient_points(
+        os.path.join(run_dir, "scaling_analysis_data.csv")
+    )
+    flat, d_sat = saturation_depth(
+        [p.n_layers for p in points],
+        [p.mean_grad_var for p in points],
+        tolerance=tolerance,
+        flat_from=flat_from,
+    )
+    weight = cost_pauli_weight(molecule, STANDARD[1], run_geometry(run_dir))
+    return dict(
+        molecule=molecule,
+        n_seeds=points[0].n_seeds,
+        max_depth=points[-1].n_layers,
+        flat_level=flat,
+        pauli_weight=weight,
+        normalized_flat_level=flat / weight,
+        d_sat=d_sat,
+        run=os.path.basename(run_dir),
+        tolerance=tolerance,
+        flat_from=flat_from,
+    )
 
 
 def write_d_sat(molecules: list[str], tolerance: float, flat_from: int) -> int:
-    """Compute d_sat for the molecules with finished runs and save the table."""
+    """Compute standard's d_sat of each molecule and save the table."""
     rows = []
     for molecule in molecules:
-        found = d_sat_rows(molecule, tolerance, flat_from)
-        if not found:
-            print(f"[{molecule}] no finished seeded runs, skipped")
-        rows += found
+        row = d_sat_row(molecule, tolerance, flat_from)
+        if row is None:
+            print(f"[{molecule}] no finished seeded standard run, skipped")
+        else:
+            rows.append(row)
     if not rows:
-        raise SystemExit("no finished seeded gradient runs found")
+        raise SystemExit("no finished seeded standard runs found")
     out = os.path.join(io.RESULTS_ROOT, "d_sat.csv")
     io.write_csv(out, rows)
     for r in rows:
-        d_sat = "not reached" if r["d_sat"] is None else r["d_sat"]
-        delta = "" if r["delta_d"] is None else f"  delta_d {r['delta_d']:+d}"
-        mark = "  <- VQE depths" if r["method"] == "standard" else ""
-        print(
-            f"{r['molecule']:5s} {r['method']:13s} flat level "
-            f"{r['flat_level']:.2e}  "
-            f"normalized {r['normalized_flat_level']:.2e}  "
-            f"d_sat {d_sat}{delta}{mark}"
+        depths = (
+            "not reached"
+            if r["d_sat"] is None
+            else f"{r['d_sat']}  VQE depths {r['d_sat']} and {2 * r['d_sat']}"
         )
-        if r["method"] == "standard" and r["d_sat"] is not None:
-            print(f"      VQE depths: {r['d_sat']} and {2 * r['d_sat']}")
+        print(
+            f"{r['molecule']:13s} flat level {r['flat_level']:.2e}  "
+            f"normalized {r['normalized_flat_level']:.2e}  d_sat {depths}"
+        )
     print(f"wrote {out}")
     return 0 if all(not math.isnan(r["flat_level"]) for r in rows) else 1
 
