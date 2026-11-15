@@ -1,26 +1,86 @@
-"""Tests for the adiabatic staged-anneal VQE.
+"""Tests for the adiabatic VQE of Harwood et al. (src/core/methods/adiabatic.py).
 
-This method generalizes qubap's VQE_adiabatic. qubap ramps the mixing
-coefficient s continuously per iteration, while we hold H fixed across
-adiabatic_steps discrete stages, which is a superset: setting
-adiabatic_steps = max_iters gives one stage per iteration and recovers qubap's
-per-iteration granularity as a limit. These tests pin the schedule endpoints
-(s=0 pure local, s=1 pure global, exactly qubap's ramp bounds), the stage-count
-clamping, and that superset limit.
+These pin the three points taken from the paper: the start near the HF state
+(the ground state of H_0), H_0 with the HF state as its ground state on the
+target's scale, and the schedule t_k = 1 - (1 - k/K)**3. They also pin the
+interpolation endpoints, the step-count clamping and the exact iteration total.
 
 Run with: pytest tests/methods/test_adiabatic.py
 """
+
+import importlib
 
 import numpy as np
 import pennylane as qml
 import pytest
 
+from src.core.ansatze import EfficientSU2
 from src.core.methods import MethodConfig, adiabatic
-from src.core.methods.adiabatic import _interpolate, hf_reference_hamiltonian
+from src.core.methods.adiabatic import (
+    _interpolate,
+    hf_parameters,
+    hf_reference_hamiltonian,
+    initial_hamiltonian,
+    schedule,
+)
+
+# The package re-exports the function adiabatic, so load the module by name.
+adiabatic_module = importlib.import_module("src.core.methods.adiabatic")
 
 
 def _matrix(hamiltonian, n):
     return qml.matrix(hamiltonian, wire_order=range(n))
+
+
+def _state(ansatz, params):
+    dev = qml.device("default.qubit", wires=ansatz.n_qubits)
+
+    @qml.qnode(dev)
+    def circuit():
+        ansatz.apply(params)
+        return qml.state()
+
+    return np.asarray(circuit())
+
+
+def test_schedule_is_harwoods():
+    """t_k = 1 - (1 - k/K)**3, rising to exactly 1. K = 20 starts at 0.142625."""
+    t = schedule(20)
+    assert t[0] == pytest.approx(1 - 0.95**3)
+    assert t[-1] == 1.0
+    assert all(a < b for a, b in zip(t, t[1:], strict=False))
+    assert schedule(1) == [1.0]
+
+
+def test_hf_parameters_prepare_the_hf_state(four_qubit_system, monkeypatch):
+    """Without the offset the parameters give the HF state exactly, with it the
+    start stays close to it."""
+    ansatz = EfficientSU2(four_qubit_system.n_qubits, d=2)
+    hf = four_qubit_system.hf_state
+    monkeypatch.setattr(adiabatic_module, "HF_OFFSET", 0.0)
+    exact = hf_parameters(
+        ansatz, four_qubit_system.hf_occupation, np.random.default_rng(0)
+    )
+    assert abs(np.vdot(hf, _state(ansatz, exact))) ** 2 == pytest.approx(
+        1.0, abs=1e-12
+    )
+    monkeypatch.setattr(adiabatic_module, "HF_OFFSET", 0.01)
+    near = hf_parameters(
+        ansatz, four_qubit_system.hf_occupation, np.random.default_rng(0)
+    )
+    assert abs(np.vdot(hf, _state(ansatz, near))) ** 2 > 0.99
+
+
+def test_initial_hamiltonian_ground_state_is_hf(four_qubit_system):
+    """H_0 keeps the target's single-Z magnitudes with HF signs, so its
+    non-degenerate ground state is the HF state."""
+    n = four_qubit_system.n_qubits
+    eigvals, eigvecs = np.linalg.eigh(
+        _matrix(initial_hamiltonian(four_qubit_system), n)
+    )
+    overlap = abs(np.vdot(four_qubit_system.hf_state, eigvecs[:, 0]))
+    assert overlap == pytest.approx(1.0, abs=1e-9)
+    assert eigvals[1] - eigvals[0] > 1e-6
 
 
 def test_hf_reference_hamiltonian_ground_state_is_hf_determinant(
@@ -90,8 +150,8 @@ def test_total_iters_exact_when_steps_do_not_divide(two_qubit_system):
 
 
 def test_single_stage_is_pure_global(two_qubit_system):
-    """adiabatic_steps=1 means s=1 for the whole run: a pure-global optimization
-    (the s ramp collapses to the global endpoint).
+    """adiabatic_steps=1 means t=1 for the whole run: a pure-global optimization
+    (the schedule collapses to the target).
 
     With one stage the whole run optimizes the global H. energy_history records
     the energy before each step, while energy_history_global re-scores the param

@@ -38,11 +38,8 @@ class MethodConfig:
             run as extra preparation ON TOP of max_iters so the main stage still
             gets the full max_iters. Ignored by single-stage methods (standard,
             sea, adiabatic).
-        adiabatic_steps: Number of anneal stages for the adiabatic method. The
-            Hamiltonian is held fixed within each stage, which runs
-            max_iters / adiabatic_steps iterations warm-started from the previous.
-            Default 10, an arbitrary choice (qubap has no stage count, it ramps
-            continuously).
+        adiabatic_steps: Number of schedule steps of the adiabatic method
+            (Harwood et al. use 20, see adiabatic.py).
     """
 
     depth: int = 4
@@ -51,7 +48,7 @@ class MethodConfig:
     max_iters: int = 200
     seed: int = 0
     warm_iters: int = 50
-    adiabatic_steps: int = 10
+    adiabatic_steps: int = 20
 
 
 @dataclass
