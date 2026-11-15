@@ -1,0 +1,29 @@
+{
+  "molecule": "H2O_tapered",
+  "geometry": "equilibrium",
+  "depth": 12,
+  "optimizers": [
+    "adam"
+  ],
+  "iters": 1000,
+  "warm_iters": 150,
+  "methods": [
+    "standard",
+    "local_global",
+    "adiabatic",
+    "sea",
+    "pretrained"
+  ],
+  "run_name": "adam_depth12_iters1000",
+  "tag": null,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "devices": [
+    "lightning.qubit"
+  ]
+}
