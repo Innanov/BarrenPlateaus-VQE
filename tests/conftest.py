@@ -1,6 +1,7 @@
 """Shared pytest setup: put the repo root on sys.path so `import src...` works.
 
-pytest loads this automatically for every test under tests/ (including subfolders).
+pytest loads this automatically for every test under tests/ (including
+subfolders).
 """
 
 import os

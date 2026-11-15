@@ -64,4 +64,6 @@ def test_consumes_all_params():
 def test_state_is_unit_norm():
     for n in (2, 4):
         state = statevector(EfficientSU2(n, d=2), n)
-        assert float(np.abs(np.vdot(state, state))) == pytest.approx(1.0, abs=1e-6)
+        assert float(np.abs(np.vdot(state, state))) == pytest.approx(
+            1.0, abs=1e-6
+        )

@@ -4,12 +4,12 @@ Standard single-stage VQE with the State Efficient Ansatz [2]. qubap [1] ships t
 SEA as an ansatz constructor only (state_efficient_ansatz), with no dedicated SEA
 VQE, so it is meant to be plugged into the ordinary VQE loop. We do exactly that:
 sea is the standard method run with the SEA ansatz, no extra behavior. The ansatz
-itself (ported in src/core/ansatze) is qubap's Schmidt-coefficient-layer
-construction.
+itself (src/core/ansatze) follows the paper's construction with one parameter per
+Ry gate, not qubap's port, which shares parameters between Ry gates.
 
 References:
     [1] qubap, https://github.com/jgidi/quantum-barren-plateaus
-    [2] Liu, Liu, Zhang, Huang, Wang, "Mitigating barren plateaus of variational
+    [2] Liu, Liu, Huang, Zhang, Wang, "Mitigating barren plateaus of variational
         quantum eigensolvers", IEEE Trans. Quantum Eng. 5, 1-19 (2024).
 """
 
@@ -35,7 +35,9 @@ def sea(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     rng = np.random.default_rng(config.seed)
     params = ansatz.random_params(rng)
     cost = _make_cost(ansatz, system.hamiltonian, n)
-    opt = build_optimizer(config.optimizer, seed=config.seed, **config.optimizer_kwargs)
+    opt = build_optimizer(
+        config.optimizer, seed=config.seed, **config.optimizer_kwargs
+    )
     params, history, phist = _optimize(cost, params, opt, config.max_iters)
     return MethodResult(
         method="sea",

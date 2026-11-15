@@ -1,7 +1,9 @@
 """Hamiltonian loading from the cached PennyLane JSON datasets.
 
-The JSON cache is produced by scripts/fetch_hamiltonians.py into the gitignored
-data/ directory (run it once before loading). Each file stores a qubit
+The JSON cache is produced by scripts/fetch_hamiltonians.py into data/. The files
+of the molecules in the study are committed (H2, H4, LiH, BeH2, NH3 and the
+tapered H2O and HeH+), and the folder ignores any other molecule fetched, so
+fetch a new one before loading it. Each file stores a qubit
 Hamiltonian as [pauli_string, coefficient] pairs, the exact FCI energy, and the
 FCI ground state as a determinant expansion (from PennyLane's
 initial_state_dets/coeffs). This module rebuilds a pennylane.Hamiltonian and
@@ -12,7 +14,9 @@ Both the FCI energy and the ground-state statevector come straight from the
 dataset. The statevector is reconstructed from the cached determinant expansion.
 A sparse Lanczos solve (scipy.sparse.linalg.eigsh, never a dense 2**n x 2**n
 diagonalization) is only a fallback for the rare case where a dataset ships no
-ground-state expansion.
+ground-state expansion, and for tapered Hamiltonians, whose files carry no
+expansion (it belongs to the untapered qubits) but carry their Hartree-Fock state
+as hf_state (see MolecularSystem.hf_occupation).
 """
 
 from __future__ import annotations
@@ -34,7 +38,7 @@ _PAULI = {"X": qml.PauliX, "Y": qml.PauliY, "Z": qml.PauliZ}
 
 @dataclass
 class MolecularSystem:
-    """One molecule/geometry: its qubit Hamiltonian, FCI energy, and ground state."""
+    """One molecule/geometry: qubit Hamiltonian, FCI energy, and ground state."""
 
     molecule: str
     geometry: str
@@ -43,8 +47,10 @@ class MolecularSystem:
     n_qubits: int
     fci_energy: float
     hamiltonian: qml.Hamiltonian
+    electrons: int | None = None
     _ground_state: np.ndarray | None = None
     _ground_energy: float | None = None
+    _hf_occupation: np.ndarray | None = None
 
     @property
     def ground_state(self) -> np.ndarray:
@@ -54,8 +60,54 @@ class MolecularSystem:
         return self._ground_state
 
     @property
+    def hf_occupation(self) -> np.ndarray:
+        """Hartree-Fock occupation vector, one 0 or 1 per qubit.
+
+        Under Jordan-Wigner the HF determinant occupies the lowest-energy
+        spin-orbitals, which are qubits 0..electrons-1. This is the
+        easy-to-prepare reference state (a single product state) used to anchor
+        the adiabatic and local_global warm-starts.
+
+        A tapered Hamiltonian (fetch_hamiltonians.py --tapered) has its HF state
+        stored in the JSON as hf_state, because after tapering it no longer fills
+        the first `electrons` qubits. That stored state is returned when present.
+        """
+        if self._hf_occupation is not None:
+            return np.asarray(self._hf_occupation, dtype=int)
+        if self.electrons is None:
+            raise ValueError(
+                f"No electron count cached for {self.molecule}; re-run "
+                "scripts/fetch_hamiltonians.py to add the 'electrons' field."
+            )
+        occ = np.zeros(self.n_qubits, dtype=int)
+        occ[: self.electrons] = 1
+        return occ
+
+    @property
+    def hf_state(self) -> np.ndarray:
+        """Hartree-Fock reference as a length 2**n_qubits statevector.
+
+        The computational-basis product state |1...1 0...0> with the lowest
+        `electrons` qubits occupied. Being a single product state it is exactly
+        preparable (a layer of X gates), so it is a cheap
+        anchor for the warm-start and adiabatic schedules.
+        Qubit 0 is the most significant bit, matching the
+        ground_state ordering.
+        """
+        occ = self.hf_occupation
+        idx = 0
+        for bit in occ:
+            idx = (idx << 1) | int(bit)
+        vec = np.zeros(2**self.n_qubits, dtype=float)
+        vec[idx] = 1.0
+        return vec
+
+    @property
     def ground_energy(self) -> float:
-        """Exact lowest eigenvalue (verify_against_fci checks it vs fci_energy)."""
+        """Exact lowest eigenvalue.
+
+        verify_against_fci checks it vs fci_energy.
+        """
         if self._ground_energy is None:
             self._solve_ground()
         return self._ground_energy
@@ -86,7 +138,9 @@ def _term_to_observable(pauli_string: str):
     return obs
 
 
-def load_hamiltonian(molecule: str, geometry: str = "equilibrium") -> MolecularSystem:
+def load_hamiltonian(
+    molecule: str, geometry: str = "equilibrium"
+) -> MolecularSystem:
     """Load a cached molecule and build its PennyLane Hamiltonian.
 
     Args:
@@ -118,7 +172,9 @@ def load_hamiltonian(molecule: str, geometry: str = "equilibrium") -> MolecularS
 
     n_qubits = int(raw["n_qubits"])
     # Exact FCI ground state from the cached determinant expansion, if present.
-    cached_gs = _ground_state_from_dets(raw.get("gs_dets"), raw.get("gs_coeffs"), n_qubits)
+    cached_gs = _ground_state_from_dets(
+        raw.get("gs_dets"), raw.get("gs_coeffs"), n_qubits
+    )
 
     return MolecularSystem(
         molecule=str(raw["molecule"]),
@@ -128,7 +184,15 @@ def load_hamiltonian(molecule: str, geometry: str = "equilibrium") -> MolecularS
         n_qubits=n_qubits,
         fci_energy=float(raw["fci_energy"]),
         hamiltonian=hamiltonian,
+        electrons=(
+            int(raw["electrons"]) if raw.get("electrons") is not None else None
+        ),
         _ground_state=cached_gs,
+        _hf_occupation=(
+            np.asarray(raw["hf_state"], dtype=int)
+            if raw.get("hf_state") is not None
+            else None
+        ),
     )
 
 

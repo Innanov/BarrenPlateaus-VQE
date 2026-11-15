@@ -28,7 +28,9 @@ def standard(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     rng = np.random.default_rng(config.seed)
     params = ansatz.random_params(rng)
     cost = _make_cost(ansatz, system.hamiltonian, n)
-    opt = build_optimizer(config.optimizer, seed=config.seed, **config.optimizer_kwargs)
+    opt = build_optimizer(
+        config.optimizer, seed=config.seed, **config.optimizer_kwargs
+    )
     params, history, phist = _optimize(cost, params, opt, config.max_iters)
     return MethodResult(
         method="standard",

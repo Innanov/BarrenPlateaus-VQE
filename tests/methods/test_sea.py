@@ -1,9 +1,10 @@
 """Tests for the State Efficient Ansatz VQE.
 
 qubap ships the SEA as an ansatz constructor only, with no dedicated SEA VQE, so
-it is meant to be plugged into the ordinary VQE loop. These tests pin exactly that:
-sea is the standard single-stage VQE run with the SEA ansatz and nothing else, and
-it inherits SEA's even-qubit requirement (matching qubap's constraint).
+it is meant to be plugged into the ordinary VQE loop. These tests pin exactly
+that: sea is the standard single-stage VQE run with the SEA ansatz and nothing
+else, and it inherits SEA's even-qubit requirement (matching qubap's
+constraint).
 
 Run with: pytest tests/methods/test_sea.py
 """
@@ -32,7 +33,9 @@ def test_sea_equals_standard_vqe_with_sea_ansatz(four_qubit_system):
     opt = build_optimizer(cfg.optimizer, seed=cfg.seed, **cfg.optimizer_kwargs)
     _, expected_history, _ = _optimize(cost, params, opt, cfg.max_iters)
 
-    np.testing.assert_allclose(result.energy_history, expected_history, atol=1e-12)
+    np.testing.assert_allclose(
+        result.energy_history, expected_history, atol=1e-12
+    )
 
 
 def test_sea_is_single_stage(four_qubit_system):

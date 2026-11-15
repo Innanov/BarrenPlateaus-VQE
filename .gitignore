@@ -119,8 +119,12 @@ gradient_scaling_plots
 circuit_plots
 
 *.ps1
+*.bat
 
 *.md
 !README.md
 
 .vscode/
+
+# Downloaded paper sources
+references/

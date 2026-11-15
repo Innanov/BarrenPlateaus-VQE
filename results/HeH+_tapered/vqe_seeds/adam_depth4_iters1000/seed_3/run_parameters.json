@@ -1,0 +1,29 @@
+{
+  "molecule": "HeH+_tapered",
+  "geometry": "equilibrium",
+  "depth": 4,
+  "optimizers": [
+    "adam"
+  ],
+  "iters": 1000,
+  "warm_iters": 150,
+  "methods": [
+    "standard",
+    "local_global",
+    "adiabatic",
+    "sea",
+    "pretrained"
+  ],
+  "seed": 3,
+  "run_name": "adam_depth4_iters1000",
+  "tag": null,
+  "device": "lightning.qubit",
+  "_provenance": {
+    "data_dir": "F:\\QML-Barren Plateaus\\code\\BarrenPlateaus-VQE\\data",
+    "git_commit": "615a7e0c0789ac633bb3102d1fc2110b0688cde5",
+    "git_dirty": false,
+    "pennylane": "0.42.3",
+    "pennylane_lightning": "0.42.0",
+    "numpy": "2.2.6"
+  }
+}

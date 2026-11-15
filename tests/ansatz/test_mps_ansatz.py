@@ -38,7 +38,15 @@ def test_offdiag_block_has_3_params():
 
 def test_diagonal_block_gate_types():
     gates = [g for g, _n, _w in MPS(2)._diag_block]
-    assert gates == [qml.U3, qml.U3, qml.IsingXX, qml.IsingYY, qml.IsingZZ, qml.U3, qml.U3]
+    assert gates == [
+        qml.U3,
+        qml.U3,
+        qml.IsingXX,
+        qml.IsingYY,
+        qml.IsingZZ,
+        qml.U3,
+        qml.U3,
+    ]
 
 
 def test_offdiag_block_gate_types():
@@ -81,7 +89,15 @@ def test_diagonal_is_block_staircase():
     assert len(ops) == 3 * 7
     # first block acts on wires (0, 1)
     first = ops[:7]
-    assert [op.name for op in first] == ["U3", "U3", "IsingXX", "IsingYY", "IsingZZ", "U3", "U3"]
+    assert [op.name for op in first] == [
+        "U3",
+        "U3",
+        "IsingXX",
+        "IsingYY",
+        "IsingZZ",
+        "U3",
+        "U3",
+    ]
     assert list(first[0].wires) == [0]
     assert list(first[1].wires) == [1]
     assert list(first[2].wires) == [0, 1]
@@ -95,11 +111,15 @@ def test_full_contains_offdiag_blocks():
     controlled rotation), which the diagonal stage never has."""
     names_full = [
         op.name
-        for op in tape_ops(MPS(6, d=1, diagonal=False), np.zeros(MPS(6, diagonal=False).n_params))
+        for op in tape_ops(
+            MPS(6, d=1, diagonal=False), np.zeros(MPS(6, diagonal=False).n_params)
+        )
     ]
     names_diag = [
         op.name
-        for op in tape_ops(MPS(6, d=1, diagonal=True), np.zeros(MPS(6, diagonal=True).n_params))
+        for op in tape_ops(
+            MPS(6, d=1, diagonal=True), np.zeros(MPS(6, diagonal=True).n_params)
+        )
     ]
     assert "CRX" in names_full
     assert "CRX" not in names_diag
@@ -123,7 +143,9 @@ def test_diagonal_ops_match_full_prefix_when_offdiag_zero():
     m_full = MPS(n, d=1, diagonal=False)
     diag_params = np.arange(m_diag.n_params, dtype=float) + 1.0
     # full params: same diagonal prefix, zeros for the off-diagonal blocks
-    full_params = np.concatenate([diag_params, np.zeros(m_full.n_params - m_diag.n_params)])
+    full_params = np.concatenate(
+        [diag_params, np.zeros(m_full.n_params - m_diag.n_params)]
+    )
 
     diag_ops = tape_ops(m_diag, diag_params)
     full_ops = tape_ops(m_full, full_params)
@@ -170,7 +192,9 @@ def test_state_is_unit_norm():
     for n in (4, 6):
         for diag in (True, False):
             state = statevector(MPS(n, d=1, diagonal=diag), n)
-            assert float(np.abs(np.vdot(state, state))) == pytest.approx(1.0, abs=1e-6)
+            assert float(np.abs(np.vdot(state, state))) == pytest.approx(
+                1.0, abs=1e-6
+            )
 
 
 def test_even_and_odd_qubit_counts_supported():

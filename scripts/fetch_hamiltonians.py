@@ -15,23 +15,43 @@ Each JSON contains:
       "basis":       "STO-3G",
       "bondlength":  0.742,
       "n_qubits":    4,
+      "electrons":   2,                  (for the Hartree-Fock reference state)
       "fci_energy":  -1.1361894540879054,
       "hf_energy":   -1.117...,          (if available)
-      "pauli_terms": [
-          ["IIII", 0.2345],
-          ["ZZII", -0.4567],
-          ...
-      ]
+      "pauli_terms": [["IIII", 0.2345], ["ZZII", -0.4567], ...],
+      "gs_dets":     [[0, 0, 1, 1], ...],   (FCI ground state, if available)
+      "gs_coeffs":   [0.99..., ...]
     }
+
+With --tapered the dataset's tapered_hamiltonian and tapered_hf_state are saved
+instead, as molecule <MOLECULE>_tapered (data/<MOLECULE>_tapered_<geometry>.json).
+Tapering removes the qubits fixed by the Hamiltonian's Z2 symmetries and keeps
+the sector of the Hartree-Fock state, so H2O drops from 14 to 10 qubits and HeH+
+in 6-31G from 8 to 6. The tapered Hartree-Fock state is still a computational
+basis state but no longer fills the first `electrons` qubits, so it is saved as
+"hf_state" and the loader takes the Hartree-Fock occupation from it.
+
+The reference energy is always the dataset's fci_energy, never one computed
+here: a dataset entry without fci_energy is not saved. The tapered
+Hamiltonian keeps the original labels of the wires it did not remove (H2O:
+0 to 8 and 10), so its wires are relabelled 0 to n-1 in sorted order, the order
+of tapered_hf_state. The FCI
+determinant expansion belongs to the untapered qubits, so gs_dets is left out and
+the loader finds the ground state by a sparse eigensolve.
 
 Usage:
     python scripts/fetch_hamiltonians.py
-    python scripts/fetch_hamiltonians.py --molecules H2 LiH --output data/hamiltonians
+    python scripts/fetch_hamiltonians.py -m H2 LiH -o data/hamiltonians
     python scripts/fetch_hamiltonians.py --all-bondlengths --molecules H2
     python scripts/fetch_hamiltonians.py --list
+    python scripts/fetch_hamiltonians.py -m H2O --tapered
+    python scripts/fetch_hamiltonians.py -m HeH+ -b 6-31G --tapered
 
-Bond lengths are discovered dynamically via qml.data.list_datasets() at runtime,
-so the script always reflects what PennyLane actually has available.
+Which bond lengths are fetched: the script reads PennyLane's dataset registry and
+looks up the qchem entry for each molecule to get its available bond lengths.
+By default it picks three geometries from them, equilibrium,
+stretched, and compressed, or just the one if only a single bond length exists.
+Pass --all-bondlengths to fetch every one.
 
 Requirements:
     pip install pennylane pennylane-datasets
@@ -96,7 +116,8 @@ DEFAULT_BASIS = "STO-3G"
 
 def get_available_bondlengths(molname, basis, qml):
     """
-    Query PennyLane's dataset registry and return (actual_basis, sorted bond lengths).
+    Query PennyLane's dataset registry and return (actual_basis, sorted bond
+    lengths).
 
     If the requested basis is not available for this molecule, falls back to the
     first available basis (e.g. He2 only has 6-31G, not STO-3G).
@@ -122,7 +143,8 @@ def pick_geometries(bondlengths):
     (geometry_label, bondlength) pairs to fetch:
 
       - Single entry  → [("equilibrium", bl)]
-      - Multiple      → equilibrium (middle/marked value) + stretched (last) + compressed (first)
+      - Multiple      → equilibrium (middle/marked value) + stretched (last)
+                        + compressed (first)
 
     The 'equilibrium' is the value closest to the physical equilibrium, which
     PennyLane marks by embedding a non-round number in an otherwise round scan
@@ -139,7 +161,8 @@ def pick_geometries(bondlengths):
 
     # Find the equilibrium: the "special" non-round value embedded in the scan.
     # Heuristic: the value with the most significant decimal digits that sits
-    # roughly in the lower half of the scan (equilibrium is never at the extremes).
+    # roughly in the lower half of the scan (equilibrium is never at the
+    # extremes).
     def decimal_places(v):
         s = f"{v:.10f}".rstrip("0")
         return len(s.split(".")[1]) if "." in s else 0
@@ -203,6 +226,19 @@ def _op_to_label(op, n_qubits):
     return "".join(label)
 
 
+def _real(coeff) -> float:
+    """Return a Pauli coefficient as a real number.
+
+    Tapered Hamiltonians store their coefficients as complex numbers with a zero
+    imaginary part. A Hermitian Hamiltonian has real Pauli coefficients, so a
+    nonzero imaginary part means a broken Hamiltonian and raises.
+    """
+    value = complex(coeff)
+    if abs(value.imag) > 1e-10:
+        raise ValueError(f"Pauli coefficient {value} is not real")
+    return float(value.real)
+
+
 def hamiltonian_to_pauli_terms(hamiltonian, n_qubits, qml):
     """
     Extract list of [pauli_string, coefficient] from any PennyLane Hamiltonian.
@@ -210,13 +246,26 @@ def hamiltonian_to_pauli_terms(hamiltonian, n_qubits, qml):
     Strategy (in order):
       1. Legacy .coeffs/.ops  : qml.Hamiltonian (fast, no matrix needed)
       2. Modern Sum of SProd  : LinearCombination / Sum (fast, no matrix needed)
-      3. qml.pauli_decompose  : last resort via full matrix (slow, small molecules only)
+      3. qml.pauli_decompose  : last resort via full matrix (slow, small
+                                molecules only)
+
+    The wire labels must be exactly 0..n_qubits-1, because each label is used as
+    a position in the Pauli string. Any other label would be dropped silently, so
+    it raises instead (relabel first, as fetch_molecule does for tapered
+    Hamiltonians).
     """
+    if set(hamiltonian.wires) != set(range(n_qubits)):
+        raise ValueError(
+            f"wires {list(hamiltonian.wires)} are not 0..{n_qubits - 1}"
+        )
+
     # Strategy 1: legacy qml.Hamiltonian
     if hasattr(hamiltonian, "coeffs") and hasattr(hamiltonian, "ops"):
         return [
-            [_op_to_label(op, n_qubits), float(coeff)]
-            for coeff, op in zip(hamiltonian.coeffs, hamiltonian.ops, strict=False)
+            [_op_to_label(op, n_qubits), _real(coeff)]
+            for coeff, op in zip(
+                hamiltonian.coeffs, hamiltonian.ops, strict=False
+            )
         ]
 
     # Strategy 2: modern Sum of SProd
@@ -224,7 +273,7 @@ def hamiltonian_to_pauli_terms(hamiltonian, n_qubits, qml):
         terms = []
         for summand in hamiltonian.operands:
             if hasattr(summand, "scalar") and hasattr(summand, "base"):
-                coeff, op = float(summand.scalar), summand.base
+                coeff, op = _real(summand.scalar), summand.base
             else:
                 coeff, op = 1.0, summand
             terms.append([_op_to_label(op, n_qubits), coeff])
@@ -248,9 +297,33 @@ def hamiltonian_to_pauli_terms(hamiltonian, n_qubits, qml):
 # Core fetch
 
 
-def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbose, qml):
-    """Download one molecule/bondlength and save to JSON. Returns True on success."""
-    out_path = os.path.join(output_dir, f"{molname}_{geometry_label}.json")
+TAPERED_ATTRIBUTES = [
+    "molecule",
+    "fci_energy",
+    "tapered_hamiltonian",
+    "tapered_hf_state",
+]
+
+
+def fetch_molecule(
+    molname,
+    bondlength,
+    basis,
+    output_dir,
+    geometry_label,
+    verbose,
+    qml,
+    tapered=False,
+):
+    """Download one molecule/bondlength and save to JSON.
+
+    With tapered, saves the tapered Hamiltonian and Hartree-Fock state under the
+    name <molname>_tapered (see the module docstring).
+
+    Returns True on success.
+    """
+    name = f"{molname}_tapered" if tapered else molname
+    out_path = os.path.join(output_dir, f"{name}_{geometry_label}.json")
 
     if os.path.exists(out_path):
         if verbose:
@@ -258,22 +331,37 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
         return True
 
     if verbose:
-        print(f"  Fetching {molname} ({geometry_label}, bond={bondlength} Å, basis={basis}) ...")
+        print(
+            f"  Fetching {molname} ({geometry_label}, "
+            f"bond={bondlength} Å, basis={basis}) ..."
+        )
 
     try:
-        datasets = qml.data.load("qchem", molname=molname, basis=basis, bondlength=bondlength)
+        datasets = qml.data.load(
+            "qchem",
+            molname=molname,
+            basis=basis,
+            bondlength=bondlength,
+            **({"attributes": TAPERED_ATTRIBUTES} if tapered else {}),
+        )
     except Exception as e:
         print(f"  [ERROR] qml.data.load failed: {e}")
         return False
 
     if not datasets:
-        print(f"  [ERROR] No dataset returned for {molname} bondlength={bondlength}")
+        print(
+            f"  [ERROR] No dataset returned for {molname} bondlength={bondlength}"
+        )
         return False
 
     data = datasets[0]
+    hamiltonian = data.tapered_hamiltonian if tapered else data.hamiltonian
+    if tapered:
+        wire_map = {w: i for i, w in enumerate(sorted(hamiltonian.wires))}
+        hamiltonian = hamiltonian.map_wires(wire_map)
 
     try:
-        n_qubits = len(data.hamiltonian.wires)
+        n_qubits = len(hamiltonian.wires)
     except Exception:
         try:
             n_qubits = 2 * data.molecule.n_orbitals
@@ -285,13 +373,14 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
         return False
 
     try:
-        pauli_terms = hamiltonian_to_pauli_terms(data.hamiltonian, n_qubits, qml)
+        pauli_terms = hamiltonian_to_pauli_terms(hamiltonian, n_qubits, qml)
     except Exception as e:
         print(f"  [ERROR] Failed to extract Pauli terms: {e}")
         return False
 
     fci_energy = None
     hf_energy = None
+    electrons = None
     try:
         fci_energy = float(data.fci_energy)
     except Exception:
@@ -300,39 +389,38 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
         hf_energy = float(data.hf_energy)
     except Exception:
         pass
+    try:
+        electrons = int(data.molecule.n_electrons)
+    except Exception:
+        pass
 
-    # fallback: diagonalise to get FCI energy
     if fci_energy is None:
-        try:
-            import numpy as np
+        print(f"  [ERROR] The dataset has no fci_energy for {molname}, not saved")
+        return False
 
-            eigvals = np.linalg.eigvalsh(qml.matrix(data.hamiltonian, wire_order=range(n_qubits)))
-            fci_energy = float(eigvals.min())
-            if verbose:
-                print(f"  Computed FCI energy via diagonalization: {fci_energy:.8f}")
-        except Exception as e:
-            print(f"  [WARN] Could not compute FCI energy: {e}")
-
-    # Exact FCI ground state as a determinant expansion (for the Cerezo local
-    # cost and fidelity). The '1.0' key holds the full state as coeffs and
-    # occupation-bitstring determinants. Cached so downstream needs no live fetch.
+    # Exact FCI ground state as a determinant expansion, cached for fidelity.
     gs_dets = None
     gs_coeffs = None
-    try:
-        dets = data.initial_state_dets["1.0"]
-        coeffs = data.initial_state_coeffs["1.0"]
-        gs_dets = [[int(b) for b in row] for row in dets]
-        gs_coeffs = [float(c) for c in coeffs]
-    except Exception as e:
-        if verbose:
-            print(f"  [WARN] No cached FCI ground state for {molname}: {e}")
+    hf_state = None
+    if tapered:
+        hf_state = [int(b) for b in data.tapered_hf_state]
+    else:
+        try:
+            dets = data.initial_state_dets["1.0"]
+            coeffs = data.initial_state_coeffs["1.0"]
+            gs_dets = [[int(b) for b in row] for row in dets]
+            gs_coeffs = [float(c) for c in coeffs]
+        except Exception as e:
+            if verbose:
+                print(f"  [WARN] No cached FCI ground state for {molname}: {e}")
 
     result = {
-        "molecule": molname,
+        "molecule": name,
         "geometry": geometry_label,
         "basis": basis,
         "bondlength": bondlength,
         "n_qubits": n_qubits,
+        "electrons": electrons,
         "fci_energy": fci_energy,
         "hf_energy": hf_energy,
         "pauli_terms": pauli_terms,
@@ -340,6 +428,8 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
         "gs_dets": gs_dets,
         "gs_coeffs": gs_coeffs,
     }
+    if hf_state is not None:
+        result["hf_state"] = hf_state
 
     os.makedirs(output_dir, exist_ok=True)
     with open(out_path, "w") as f:
@@ -347,7 +437,8 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
 
     if verbose:
         print(
-            f"  Saved {out_path}  ({n_qubits} qubits, {len(pauli_terms)} Pauli terms, "
+            f"  Saved {out_path}  ({n_qubits} qubits, "
+            f"{len(pauli_terms)} Pauli terms, "
             f"FCI={fci_energy:.6f})"
         )
     return True
@@ -357,15 +448,23 @@ def fetch_molecule(molname, bondlength, basis, output_dir, geometry_label, verbo
 
 
 def list_molecules(basis, qml):
-    """Print all available molecules and their bond lengths from the live registry."""
+    """Print all available molecules and their bond lengths.
+
+    The list comes from the live registry.
+    """
     print(f"Querying PennyLane dataset registry (preferred basis={basis}) ...")
-    print(f"\n  {'Molecule':<10} {'Basis':<10} {'# bond lengths':<18} {'Range (Å)'}")
+    print(
+        f"\n  {'Molecule':<10} {'Basis':<10} {'# bond lengths':<18} {'Range (Å)'}"
+    )
     print("  " + "-" * 62)
     for mol in ALL_MOLECULES:
         actual_basis, bls = get_available_bondlengths(mol, basis, qml)
         if bls:
             note = " (fallback)" if actual_basis != basis else ""
-            print(f"  {mol:<10} {actual_basis:<10} {len(bls):<18} {bls[0]} to {bls[-1]}{note}")
+            print(
+                f"  {mol:<10} {actual_basis:<10} {len(bls):<18} "
+                f"{bls[0]} to {bls[-1]}{note}"
+            )
         else:
             print(f"  {mol:<10} {'(not found)'}")
 
@@ -375,7 +474,9 @@ def list_molecules(basis, qml):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Fetch molecular Hamiltonians from PennyLane Datasets → JSON cache"
+        description=(
+            "Fetch molecular Hamiltonians from PennyLane Datasets → JSON cache"
+        )
     )
     parser.add_argument(
         "--molecules",
@@ -399,7 +500,10 @@ def main():
     parser.add_argument(
         "--all-bondlengths",
         action="store_true",
-        help="Fetch every available bond length instead of just equilibrium/stretched/compressed",
+        help=(
+            "Fetch every available bond length instead of just "
+            "equilibrium/stretched/compressed"
+        ),
     )
     parser.add_argument(
         "--list",
@@ -419,6 +523,11 @@ def main():
         "-q",
         action="store_true",
         help="Suppress verbose output",
+    )
+    parser.add_argument(
+        "--tapered",
+        action="store_true",
+        help="Save the tapered Hamiltonian as <MOLECULE>_tapered",
     )
     args = parser.parse_args()
 
@@ -445,7 +554,10 @@ def main():
     for name in args.molecules:
         canonical = mol_lookup.get(name.upper())
         if canonical is None:
-            print(f"[WARN] Unknown molecule '{name}', skipping. Use --list to see options.")
+            print(
+                f"[WARN] Unknown molecule '{name}', skipping. "
+                "Use --list to see options."
+            )
         elif name.upper() in skip_set:
             print(f"[SKIP] {canonical}")
         else:
@@ -464,7 +576,9 @@ def main():
             print(f"Molecule: {molname}")
             print(f"{'='*60}")
 
-        actual_basis, bondlengths = get_available_bondlengths(molname, args.basis, qml)
+        actual_basis, bondlengths = get_available_bondlengths(
+            molname, args.basis, qml
+        )
 
         if not bondlengths:
             print(f"  [WARN] No bond lengths found for {molname}, skipping.")
@@ -472,7 +586,10 @@ def main():
             continue
 
         if actual_basis != args.basis and verbose:
-            print(f"  [INFO] {molname} not available in {args.basis}, using {actual_basis}")
+            print(
+                f"  [INFO] {molname} not available in {args.basis}, "
+                f"using {actual_basis}"
+            )
 
         if args.all_bondlengths:
             geometries = [(f"bl_{bl}", bl) for bl in bondlengths]
@@ -481,9 +598,13 @@ def main():
 
         if verbose:
             print(
-                f"  Available bond lengths ({len(bondlengths)}): {bondlengths[0]} to {bondlengths[-1]}"
+                f"  Available bond lengths ({len(bondlengths)}): "
+                f"{bondlengths[0]} to {bondlengths[-1]}"
             )
-            print(f"  Fetching {len(geometries)} geometries: " f"{[g[0] for g in geometries]}")
+            print(
+                f"  Fetching {len(geometries)} geometries: "
+                f"{[g[0] for g in geometries]}"
+            )
 
         for geometry_label, bondlength in geometries:
             ok = fetch_molecule(
@@ -494,6 +615,7 @@ def main():
                 geometry_label=geometry_label,
                 verbose=verbose,
                 qml=qml,
+                tapered=args.tapered,
             )
             if ok:
                 success_count += 1

@@ -5,8 +5,7 @@ tractable) ansatz, then transfer its parameters into the full ansatz by prefix
 zero-pad. The diagonal parameters occupy the same leading indices in both
 circuits, and a zero off-diagonal block is the identity, so the full stage starts
 exactly at the pretrained state. This is the MPS pre-training method of [2]. We
-transfer the final pretrained iterate, where qubap averages the last ten. The
-method is also optimizer-agnostic, where qubap is SPSA-only.
+transfer the final pretrained iterate, where qubap averages the last ten.
 
 References:
     [1] qubap, https://github.com/jgidi/quantum-barren-plateaus
@@ -36,10 +35,11 @@ def pretrained(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     The MPS pre-training runs warm_iters as extra preparation, then the full stage
     runs the full max_iters, so every method's main stage has the same length (the
     warm-up is on top, not carved out of max_iters). The full stage refines with a
-    reduced stepsize (a fifth of the base), because the transfer already lands a
-    near-optimal state that a full-stepsize first step would overshoot and disrupt.
-    This mirrors qubap continuing its decayed optimizer schedule into the full
-    stage rather than restarting at full step size.
+    reduced stepsize, a fifth of the one stage 1 used (the optimizer's default
+    unless optimizer_kwargs sets one), because the transfer already lands a
+    near-optimal state that a full-stepsize first step would overshoot and
+    disrupt. This mirrors qubap continuing its decayed optimizer schedule into
+    the full stage rather than restarting at full step size.
 
     With QNG the full stage uses the diagonal metric approximation. QNG's
     block-diagonal metric on this MPS ansatz is not positive semi-definite (it has
@@ -54,8 +54,12 @@ def pretrained(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     mps = MPS(n, d=config.depth, diagonal=True)
     mps_params = mps.random_params(rng)
     cost_mps = _make_cost(mps, system.hamiltonian, n)
-    opt = build_optimizer(config.optimizer, seed=config.seed, **config.optimizer_kwargs)
-    mps_params, hist_mps, _ = _optimize(cost_mps, mps_params, opt, config.warm_iters)
+    opt = build_optimizer(
+        config.optimizer, seed=config.seed, **config.optimizer_kwargs
+    )
+    mps_params, hist_mps, _ = _optimize(
+        cost_mps, mps_params, opt, config.warm_iters
+    )
     boundary = len(hist_mps)
 
     # Stage 2: full ansatz, warm-started by the prefix zero-pad transfer.
@@ -66,11 +70,15 @@ def pretrained(system: MolecularSystem, config: MethodConfig) -> MethodResult:
     full_params = pnp.array(init, requires_grad=True)
     cost_full = _make_cost(full, system.hamiltonian, n)
     stage2_kwargs = dict(config.optimizer_kwargs)
-    stage2_kwargs["stepsize"] = 0.2 * config.optimizer_kwargs.get("stepsize", 0.1)
+    stage2_kwargs["stepsize"] = 0.2 * opt.stepsize
     if config.optimizer.lower() == "qng":
         stage2_kwargs.setdefault("approx", "diag")
-    opt2 = build_optimizer(config.optimizer, seed=config.seed + 1, **stage2_kwargs)
-    full_params, hist_full, phist_full = _optimize(cost_full, full_params, opt2, config.max_iters)
+    opt2 = build_optimizer(
+        config.optimizer, seed=config.seed + 1, **stage2_kwargs
+    )
+    full_params, hist_full, phist_full = _optimize(
+        cost_full, full_params, opt2, config.max_iters
+    )
 
     combined = hist_mps + hist_full  # full record (MPS pre-stage + quantum stage)
     return MethodResult(
@@ -82,6 +90,6 @@ def pretrained(system: MolecularSystem, config: MethodConfig) -> MethodResult:
         n_params=full.n_params,
         stage_boundaries=[boundary],
         param_history=phist_full,
-        # Reported convergence is the full (quantum) stage only, from the warm-start.
+        # Reported convergence is the full (quantum) stage only, warm-started.
         energy_history_global=hist_full,
     )

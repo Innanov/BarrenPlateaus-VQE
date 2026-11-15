@@ -1,11 +1,12 @@
 """Tests for the adiabatic staged-anneal VQE.
 
-This method generalizes qubap's VQE_adiabatic. qubap ramps the mixing coefficient
-s continuously per iteration, while we hold H fixed across adiabatic_steps discrete
-stages, which is a superset: setting adiabatic_steps = max_iters gives one stage
-per iteration and recovers qubap's per-iteration granularity as a limit. These
-tests pin the schedule endpoints (s=0 pure local, s=1 pure global, exactly qubap's
-ramp bounds), the stage-count clamping, and that superset limit.
+This method generalizes qubap's VQE_adiabatic. qubap ramps the mixing
+coefficient s continuously per iteration, while we hold H fixed across
+adiabatic_steps discrete stages, which is a superset: setting
+adiabatic_steps = max_iters gives one stage per iteration and recovers qubap's
+per-iteration granularity as a limit. These tests pin the schedule endpoints
+(s=0 pure local, s=1 pure global, exactly qubap's ramp bounds), the stage-count
+clamping, and that superset limit.
 
 Run with: pytest tests/methods/test_adiabatic.py
 """
@@ -15,11 +16,27 @@ import pennylane as qml
 import pytest
 
 from src.core.methods import MethodConfig, adiabatic
-from src.core.methods.adiabatic import _interpolate
+from src.core.methods.adiabatic import _interpolate, hf_reference_hamiltonian
 
 
 def _matrix(hamiltonian, n):
     return qml.matrix(hamiltonian, wire_order=range(n))
+
+
+def test_hf_reference_hamiltonian_ground_state_is_hf_determinant(
+    four_qubit_system,
+):
+    """H_0's non-degenerate ground state is the HF occupation basis state, so the
+    anneal starts from an easy-to-prepare reference and not the exact ground
+    state.
+    """
+    n = four_qubit_system.n_qubits
+    h0 = hf_reference_hamiltonian(four_qubit_system.hf_occupation)
+    eigvals, eigvecs = np.linalg.eigh(_matrix(h0, n))
+    gs = eigvecs[:, 0]
+    overlap = abs(np.vdot(four_qubit_system.hf_state, gs))
+    assert overlap == pytest.approx(1.0, abs=1e-9)
+    assert eigvals[1] - eigvals[0] > 1e-6  # non-degenerate ground state
 
 
 def test_interpolate_endpoints_match_qubap_ramp():
@@ -28,7 +45,9 @@ def test_interpolate_endpoints_match_qubap_ramp():
     """
     n = 2
     h_local = qml.Hamiltonian([1.0, 0.5], [qml.PauliZ(0), qml.PauliX(1)])
-    h_global = qml.Hamiltonian([1.0, 1.0], [qml.PauliZ(0) @ qml.PauliZ(1), qml.PauliX(0)])
+    h_global = qml.Hamiltonian(
+        [1.0, 1.0], [qml.PauliZ(0) @ qml.PauliZ(1), qml.PauliX(0)]
+    )
 
     at0 = _matrix(_interpolate(h_local, h_global, 0.0), n)
     at1 = _matrix(_interpolate(h_local, h_global, 1.0), n)
@@ -63,7 +82,9 @@ def test_total_iters_exact_when_steps_do_not_divide(two_qubit_system):
     the budget equal to every other method.
     """
     for max_iters, steps in [(20, 7), (20, 3), (13, 5), (7, 4)]:
-        cfg = MethodConfig(depth=1, max_iters=max_iters, adiabatic_steps=steps, seed=0)
+        cfg = MethodConfig(
+            depth=1, max_iters=max_iters, adiabatic_steps=steps, seed=0
+        )
         result = adiabatic(two_qubit_system, cfg)
         assert len(result.energy_history) == max_iters
 
@@ -99,4 +120,6 @@ def test_global_curve_length_matches_param_path(two_qubit_system):
     result = adiabatic(two_qubit_system, cfg)
     assert len(result.energy_history_global) == len(result.param_history)
     assert result.stage_boundaries == []
-    assert result.energy_history_global[-1] == pytest.approx(result.final_energy, abs=1e-6)
+    assert result.energy_history_global[-1] == pytest.approx(
+        result.final_energy, abs=1e-6
+    )

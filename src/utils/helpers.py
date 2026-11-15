@@ -98,7 +98,9 @@ def single_qubit_marginals(state, n_qubits):
 
 
 def ising_hamiltonian(n_qubits):
-    """A small transverse-field Ising Hamiltonian for the given qubit count (tests).
+    """A small transverse-field Ising Hamiltonian for the given qubit count.
+
+    Used in tests.
 
     2 qubits is a single Z-Z bond plus transverse fields, and 4 qubits is a Z-Z
     ladder plus transverse fields. Only these two sizes are provided.
@@ -106,7 +108,12 @@ def ising_hamiltonian(n_qubits):
     if n_qubits == 2:
         return qml.Hamiltonian(
             [1.0, 1.0, 0.5, 0.5],
-            [qml.PauliZ(0) @ qml.PauliZ(1), qml.PauliX(0), qml.PauliX(1), qml.PauliZ(0)],
+            [
+                qml.PauliZ(0) @ qml.PauliZ(1),
+                qml.PauliX(0),
+                qml.PauliX(1),
+                qml.PauliZ(0),
+            ],
         )
     if n_qubits == 4:
         return qml.Hamiltonian(
@@ -121,15 +128,19 @@ def ising_hamiltonian(n_qubits):
                 qml.PauliX(3),
             ],
         )
-    raise ValueError(f"No hand-made Hamiltonian for {n_qubits} qubits (use 2 or 4).")
+    raise ValueError(
+        f"No hand-made Hamiltonian for {n_qubits} qubits (use 2 or 4)."
+    )
 
 
 def ising_system(n_qubits):
     """A small MolecularSystem wrapping ising_hamiltonian(n_qubits), for tests.
 
-    Constructs the MolecularSystem in code (fci fields unused) instead of loading a
-    real molecule from the data/ cache, so tests are self-contained and fast. The
-    exact ground_state and ground_energy are solved on first access.
+    Constructs the MolecularSystem in code (fci fields unused) instead of loading
+    a real molecule from the data/ cache, so tests are self-contained and fast.
+    The exact ground_state and ground_energy are solved on first access.
+    electrons is set to half filling so the HF-reference warm-starts have a
+    valid anchor.
     """
     return MolecularSystem(
         molecule="test",
@@ -139,4 +150,5 @@ def ising_system(n_qubits):
         n_qubits=n_qubits,
         fci_energy=0.0,
         hamiltonian=ising_hamiltonian(n_qubits),
+        electrons=n_qubits // 2,
     )

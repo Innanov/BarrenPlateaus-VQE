@@ -27,7 +27,10 @@ class Optimizer:
     """Common optimizer interface."""
 
     def reset(self, params):
-        """Reset internal state and return the initial parameters (autodiff-ready)."""
+        """Reset internal state and return the initial parameters.
+
+        The returned parameters are autodiff-ready.
+        """
         return pnp.array(np.asarray(params, dtype=float), requires_grad=True)
 
     def step(self, cost, params):  # pragma: no cover - interface
@@ -53,7 +56,7 @@ class Adam(Optimizer):
         eps: Numerical stabilizer.
     """
 
-    def __init__(self, stepsize=0.1, beta1=0.9, beta2=0.999, eps=1e-8):
+    def __init__(self, stepsize=0.02, beta1=0.9, beta2=0.999, eps=1e-8):
         self.stepsize = stepsize
         self.beta1 = beta1
         self.beta2 = beta2
@@ -62,7 +65,10 @@ class Adam(Optimizer):
 
     def reset(self, params):
         self._opt = qml.AdamOptimizer(
-            stepsize=self.stepsize, beta1=self.beta1, beta2=self.beta2, eps=self.eps
+            stepsize=self.stepsize,
+            beta1=self.beta1,
+            beta2=self.beta2,
+            eps=self.eps,
         )
         return pnp.array(np.asarray(params, dtype=float), requires_grad=True)
 
@@ -96,7 +102,9 @@ class QNG(Optimizer):
         self._opt = None
 
     def reset(self, params):
-        self._opt = qml.QNGOptimizer(stepsize=self.stepsize, approx=self.approx, lam=self.lam)
+        self._opt = qml.QNGOptimizer(
+            stepsize=self.stepsize, approx=self.approx, lam=self.lam
+        )
         return pnp.array(np.asarray(params, dtype=float), requires_grad=True)
 
     def step(self, cost, params):

@@ -1,9 +1,9 @@
-"""Shared method infrastructure: config and result containers, cost, loop, registry.
+"""Shared method infrastructure: config/result containers, cost, loop, registry.
 
 MethodConfig/MethodResult are the input settings and output record every method
 uses. _make_cost builds the QNode cost and _optimize runs the iteration loop, so
-each method is a thin wrapper that assembles a Hamiltonian and calls these. METHODS
-maps each method name to its function and run_method dispatches by name.
+each method is a thin wrapper that assembles a Hamiltonian and calls these.
+METHODS maps each method name to its function and run_method dispatches by name.
 """
 
 from __future__ import annotations
@@ -22,15 +22,16 @@ from ..backend import MolecularSystem, Optimizer, make_device
 
 @dataclass
 class MethodConfig:
-    """Input configuration for a method run: ansatz depth, optimizer, and iteration counts.
+    """Input configuration for a method run: ansatz depth, optimizer, iterations.
 
     Attributes:
         depth: Ansatz depth (kept identical across methods for a comparison).
         optimizer: Optimizer name ('adam', 'qng', or 'adagrad').
         optimizer_kwargs: Extra keyword args for the optimizer.
-        max_iters: Iterations of the main stage, the SAME for every method so their
-            main-stage convergence compares iteration-for-iteration. Single-stage
-            methods run this once, and adiabatic distributes it across its stages.
+        max_iters: Iterations of the main stage, the SAME for every method so
+            their main-stage convergence compares iteration-for-iteration.
+            Single-stage methods run this once, and adiabatic distributes it
+            across its stages.
         seed: RNG seed for the initial parameters (reproducibility).
         warm_iters: Iterations of the warm-up stage for the two-stage methods
             (local_global's local-cost warm-up, pretrained's MPS pre-training),
@@ -40,7 +41,8 @@ class MethodConfig:
         adiabatic_steps: Number of anneal stages for the adiabatic method. The
             Hamiltonian is held fixed within each stage, which runs
             max_iters / adiabatic_steps iterations warm-started from the previous.
-            Default 10 (the reference value).
+            Default 10, an arbitrary choice (qubap has no stage count, it ramps
+            continuously).
     """
 
     depth: int = 4
@@ -49,16 +51,16 @@ class MethodConfig:
     max_iters: int = 200
     seed: int = 0
     warm_iters: int = 50
-    adiabatic_steps: int = 10  # reference (qubap) value
+    adiabatic_steps: int = 10
 
 
 @dataclass
 class MethodResult:
-    """What a method run returns: the converged solution plus its convergence record.
+    """What a method run returns: the converged solution and convergence record.
 
     Carries the final energy, parameters, and ansatz (for metrics like energy
     error and fidelity) and the per-iteration energy and parameter histories (for
-    convergence curves and landscape overlays).
+    convergence curves).
 
     Attributes:
         method: Method name.
@@ -71,7 +73,7 @@ class MethodResult:
         stage_boundaries: Iteration indices where a new stage begins (for plots
             and per-stage reporting).
         param_history: Parameter vectors along the final stage's trajectory (in
-            the reported ansatz's parameter space), for landscape overlays.
+            the reported ansatz's parameter space).
             Multi-stage methods record only the final stage, since earlier stages
             use a different space.
         energy_history_global: Per-iteration energy vs the global (full)
@@ -112,7 +114,9 @@ def _fixed_hamiltonian(coeffs, obs) -> qml.Hamiltonian:
     return qml.Hamiltonian(pnp.array(coeffs, requires_grad=False), obs).simplify()
 
 
-def _make_cost(ansatz: Ansatz, hamiltonian: qml.Hamiltonian, n_qubits: int) -> Callable:
+def _make_cost(
+    ansatz: Ansatz, hamiltonian: qml.Hamiltonian, n_qubits: int
+) -> Callable:
     """Build a QNode cost function for <ansatz(params)| H |ansatz(params)>.
 
     Args:
@@ -159,7 +163,9 @@ def _optimize(cost, params, optimizer: Optimizer, iters: int, reset: bool = True
     return params, history, param_history
 
 
-def _load_methods() -> dict[str, Callable[[MolecularSystem, MethodConfig], MethodResult]]:
+def _load_methods() -> (
+    dict[str, Callable[[MolecularSystem, MethodConfig], MethodResult]]
+):
     """Import the method functions and return the name->function registry.
 
     Imported here, not at module top, to avoid a circular import: each method
@@ -214,7 +220,9 @@ class _MethodRegistry(Mapping):
 METHODS = _MethodRegistry()
 
 
-def run_method(name: str, system: MolecularSystem, config: MethodConfig) -> MethodResult:
+def run_method(
+    name: str, system: MolecularSystem, config: MethodConfig
+) -> MethodResult:
     """Look up a method in METHODS by name, run it, and time it.
 
     The dispatch entry point: unlike calling a method function directly, this
