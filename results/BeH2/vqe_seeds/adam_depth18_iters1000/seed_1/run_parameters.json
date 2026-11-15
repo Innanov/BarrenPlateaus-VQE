@@ -20,10 +20,15 @@
   "device": "lightning.qubit",
   "_provenance": {
     "data_dir": "F:\\QML-Barren Plateaus\\code\\BarrenPlateaus-VQE\\data",
-    "git_commit": "0bdc2f26be326a63c7139b89c221da7bc7da5660",
-    "git_dirty": false,
+    "git_commit": "30af894af54c522ef0e4b0fb9bc0ee081a28c2f0",
+    "git_dirty": true,
     "pennylane": "0.42.3",
     "pennylane_lightning": "0.42.0",
-    "numpy": "2.2.6"
+    "numpy": "2.2.6",
+    "rerun_methods": [
+      [
+        "adiabatic"
+      ]
+    ]
   }
 }
