@@ -125,7 +125,7 @@ not need to install qubap. Each method module lists its own references.
 | --- | --- |
 | **Standard** | The unmitigated baseline: EfficientSU2 (Ry, Rz + circular CNOT) optimized directly against the full H. |
 | **Local-Global** | Warm-start on a local cost (Cerezo et al.) whose minimum is the Hartree-Fock state, then refine on the full H. |
-| **Adiabatic** | Staged anneal `(1-s)*H_0 + s*H_global` from a Hartree-Fock reference Hamiltonian `H_0`, each stage held fixed and warm-started from the previous. |
+| **Adiabatic** | Variational adiabatic VQE (Harwood et al.): starts at the Hartree-Fock state, the ground state of `H_0`, and solves `(1-t)*H_0 + t*H_global` along `t_k = 1-(1-k/20)^3`, each step warm-started from the previous. |
 | **SEA** | Standard VQE with the State Efficient Ansatz (ported from qubap), which requires an even qubit count. |
 | **Pretrained** | Two-stage MPS: train the diagonal MPS stage, transfer by prefix zero-pad into the full MPS stage, then refine. |
 

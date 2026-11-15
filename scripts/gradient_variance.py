@@ -17,8 +17,12 @@ method starts training on, at random parameters:
     efficient_su2, energy        standard
     sea, energy                  sea
     efficient_su2, local_cost    local_global, its first-stage cost
-    efficient_su2, hf_reference  adiabatic, its first-stage Hamiltonian
+    efficient_su2, hf_reference  adiabatic, its initial Hamiltonian H_0
     mps, energy                  pretrained, its diagonal MPS pre-training stage
+
+adiabatic itself starts near the HF state, the ground state of H_0, not at
+random parameters (src/core/methods/adiabatic.py), so its curve shows the H_0
+landscape it anneals from.
 
 Warm starts (--warm-start runs) are left out. local_global's warm-up stalls on
 the local cost's own plateau in deep circuits, and pretrained hands off in a

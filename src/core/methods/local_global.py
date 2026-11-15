@@ -12,7 +12,19 @@ anchor must be a product state, which the HF state is.
 
 This generalizes qubap's VQE_shift [1], replacing qubap's global2local
 Pauli-splitting (whose minimum is generally not the target state) with the HF
-local cost. The local-cost idea is from [2].
+local cost. The local-cost idea is from [2]: O_L has the form of [2]'s local
+state-preparation cost (Arxiv_Final.tex line 421) with the HF state as target.
+
+Checked against [2] (November 2026): the warm-up is trainable only for shallow
+circuits. [2] proves local costs avoid the plateau for depth O(log n) (Fig. 1
+caption, line 387), and "for deep circuits, our ansatz behaves like a random
+circuit and we recover the barren plateau result ... for both local and global
+cost functions" (line 616). The runs agree: at d_sat the 150 warm-up iterations
+reach the HF state (O_L near 0), at 2 d_sat on LiH, BeH2 and H2O they end at
+O_L 0.15 to 0.46 (a random state gives about 0.5), so the energy stage starts
+like standard. That failure is the method's, not the implementation's, so the
+method is kept as [2] defines it, from random parameters. Starting it at the HF
+state instead would leave nothing for the local stage to do.
 
 References:
     [1] qubap, https://github.com/jgidi/quantum-barren-plateaus

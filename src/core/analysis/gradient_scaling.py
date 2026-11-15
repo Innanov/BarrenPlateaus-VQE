@@ -38,7 +38,10 @@ actually starts training:
 - gradient_scaling draws random parameters (uniform [0, 2pi)) and differentiates
   one of the costs in COSTS: the molecular energy (standard, sea), the
   Hartree-Fock local cost that local_global trains on first, or the Hartree-Fock
-  reference Hamiltonian that adiabatic starts its anneal on.
+  reference Hamiltonian (unit weights) that adiabatic anneals from. Since
+  adiabatic starts near the HF state (methods/adiabatic.py), not at random
+  parameters, that curve describes the landscape of its initial Hamiltonian, not
+  the point where it starts.
 - warm_start_gradient_scaling runs a two-stage method's warm-up (local_global's
   local-cost stage, pretrained's MPS pre-training) from each sample's seed and
   differentiates the molecular energy at the resulting handoff point, the point
